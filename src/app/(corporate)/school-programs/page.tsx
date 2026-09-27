@@ -3,6 +3,8 @@ import LearningProgramLandingView from '@/components/corporate/LearningProgramLa
 import { schoolLanding } from '@/lib/corporate/school-landing';
 import { getSchoolProgramsLandingArticles, mergeLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'School Programs | Educational Himalayan Outings | Indian Treks',
   description:

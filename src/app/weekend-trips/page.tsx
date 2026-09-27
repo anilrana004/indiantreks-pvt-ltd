@@ -2,6 +2,8 @@ import TrendingLandingPageView from '@/components/trending/TrendingLandingPageVi
 import { getWeekendTripsLandingArticles } from '@/lib/knowledge/landing-page-articles';
 import { weekendTripsLandingConfig } from '@/lib/weekend-trips-content';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Weekend Trips | Short Himalayan Treks | Indian Treks',
   description:

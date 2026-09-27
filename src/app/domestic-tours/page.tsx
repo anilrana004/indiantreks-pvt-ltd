@@ -1,6 +1,8 @@
 import DomesticToursPageView from '@/components/domestic/DomesticToursPageView';
 import { getDomesticLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Domestic Tours in India | Himalayan & Heritage Getaways | Indian Treks',
   description:

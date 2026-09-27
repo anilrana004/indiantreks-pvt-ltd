@@ -2,6 +2,8 @@ import TrendingLandingPageView from '@/components/trending/TrendingLandingPageVi
 import { bestSellersLandingConfig } from '@/lib/best-sellers-content';
 import { getBestSellersLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Best Sellers | Most Booked Group Trips | Indian Treks',
   description:

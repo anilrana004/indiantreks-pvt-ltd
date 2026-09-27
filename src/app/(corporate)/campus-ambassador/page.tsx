@@ -3,6 +3,8 @@ import LearningProgramLandingView from '@/components/corporate/LearningProgramLa
 import { campusLanding } from '@/lib/corporate/campus-landing';
 import { getCampusAmbassadorLandingArticles, mergeLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'Campus Ambassador Program | Indian Treks',
   description:

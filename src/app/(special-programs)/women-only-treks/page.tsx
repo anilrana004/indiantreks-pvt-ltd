@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import WomenOnlyTreksPageView from '@/components/special-programs/WomenOnlyTreksPageView';
 import { getWomenOnlyTreksLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'Women-Only Treks | All-Girls Himalayan Groups | Indian Treks',
   description:

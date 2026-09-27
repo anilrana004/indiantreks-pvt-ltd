@@ -1,6 +1,8 @@
 import BikingTripsPageView from '@/components/biking/BikingTripsPageView';
 import { getBikingLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Biking Trips in the Himalayas | Manali, Ladakh & Spiti | Indian Treks',
   description:

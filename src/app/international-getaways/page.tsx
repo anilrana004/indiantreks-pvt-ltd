@@ -1,6 +1,8 @@
 import InternationalGetawaysPageView from '@/components/international/InternationalGetawaysPageView';
 import { getInternationalLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'International Getaways | Nepal, Bhutan & Beyond | Indian Treks',
   description:

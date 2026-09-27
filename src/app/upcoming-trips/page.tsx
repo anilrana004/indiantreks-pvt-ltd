@@ -2,6 +2,8 @@ import TrendingLandingPageView from '@/components/trending/TrendingLandingPageVi
 import { getUpcomingTripsLandingArticles } from '@/lib/knowledge/landing-page-articles';
 import { upcomingTripsLandingConfig } from '@/lib/upcoming-trips-content';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Upcoming Trips | August, September & October Departures | Indian Treks',
   description:

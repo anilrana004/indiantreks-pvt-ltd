@@ -13,13 +13,10 @@ export function generateStaticParams() {
 
 export default async function TrekDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ guests?: string; date?: string }>;
 }) {
   const { id } = await params;
-  const sp = await searchParams;
   const trek = getTrekById(id);
   if (!trek) notFound();
 
@@ -29,15 +26,9 @@ export default async function TrekDetailPage({
     redirect(canonical);
   }
   if (id !== trek.id) {
-    const qs = new URLSearchParams();
-    if (sp?.guests) qs.set('guests', sp.guests);
-    if (sp?.date) qs.set('date', sp.date);
-    const suffix = qs.toString() ? `?${qs.toString()}` : '';
-    redirect(`${canonical}${suffix}`);
+    redirect(canonical);
   }
 
-  const guests = Number(sp?.guests || '');
-  const initialGuests = Number.isFinite(guests) && guests >= 1 ? Math.min(20, Math.floor(guests)) : 1;
   const relatedBlogPosts = await fetchRelatedBlogPosts(trek, 3, 'trek');
   const promoBanners = getPromoBanners(trek);
 
@@ -45,7 +36,6 @@ export default async function TrekDetailPage({
     <TrekDetailContent
       trek={trek}
       type="trek"
-      initialGuests={initialGuests}
       relatedBlogPosts={relatedBlogPosts}
       promoBanners={promoBanners}
     />

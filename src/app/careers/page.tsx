@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import CareersPageView from '@/components/careers/CareersPageView';
 import { getCareersLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'Careers | Indian Treks — Join Our Himalayan Adventure Team',
   description:

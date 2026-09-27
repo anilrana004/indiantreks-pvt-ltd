@@ -3,6 +3,8 @@ import LearningProgramLandingView from '@/components/corporate/LearningProgramLa
 import { giftLanding } from '@/lib/corporate/gift-landing';
 import { getTravelGiftCardsLandingArticles, mergeLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'Travel Gift Cards | Indian Treks',
   description:

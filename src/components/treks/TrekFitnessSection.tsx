@@ -8,10 +8,6 @@ import {
   assessTrekFitness,
   type FitnessAssessmentInput,
 } from '@/lib/treks/fitness-calculator';
-import {
-  downloadFitnessPlanPdf,
-  printFitnessPlanPdf,
-} from '@/lib/treks/fitness-plan-pdf';
 import './trek-fitness.css';
 
 const DEFAULT_INPUT: FitnessAssessmentInput = {
@@ -215,7 +211,10 @@ export default function TrekFitnessSection({ trek, section }: Props) {
                       type="button"
                       className="kg-pill-btn kg-pill-btn--primary"
                       onClick={() => {
-                        void downloadFitnessPlanPdf(result, planMeta);
+                        void (async () => {
+                          const { downloadFitnessPlanPdf } = await import('@/lib/treks/fitness-plan-pdf');
+                          await downloadFitnessPlanPdf(result, planMeta);
+                        })();
                       }}
                     >
                       <i className="fa-solid fa-download" aria-hidden /> Download training plan (PDF)
@@ -224,7 +223,10 @@ export default function TrekFitnessSection({ trek, section }: Props) {
                       type="button"
                       className="kg-pill-btn"
                       onClick={() => {
-                        void printFitnessPlanPdf(result, planMeta);
+                        void (async () => {
+                          const { printFitnessPlanPdf } = await import('@/lib/treks/fitness-plan-pdf');
+                          await printFitnessPlanPdf(result, planMeta);
+                        })();
                       }}
                     >
                       <i className="fa-solid fa-print" aria-hidden /> Print plan

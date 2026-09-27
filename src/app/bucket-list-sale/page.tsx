@@ -2,6 +2,8 @@ import TrendingLandingPageView from '@/components/trending/TrendingLandingPageVi
 import { bucketListSaleLandingConfig } from '@/lib/bucket-list-sale-content';
 import { getBucketListSaleLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Bucket List Sale | Up to 40% Off Treks & Yatras | Indian Treks',
   description:

@@ -1,10 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useId, useRef } from 'react';
 import { photos } from '@/lib/media';
-import PackedJourneysMemories from './PackedJourneysMemories';
 import './our-packing-list.css';
+
+const PackedJourneysMemories = dynamic(() => import('./PackedJourneysMemories'), {
+  ssr: false,
+  loading: () => <div className="it-packed-journeys-fallback" aria-hidden style={{ minHeight: 280 }} />,
+});
 
 /**
  * Our Packing List — simple horizontal journey cards (stable layout).

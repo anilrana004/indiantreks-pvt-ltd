@@ -2,6 +2,8 @@ import TrendingLandingPageView from '@/components/trending/TrendingLandingPageVi
 import { getNewLaunchesLandingArticles } from '@/lib/knowledge/landing-page-articles';
 import { newLaunchesLandingConfig } from '@/lib/new-launches-content';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'New Launches | Latest Backpacking Trips | Indian Treks',
   description:

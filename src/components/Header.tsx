@@ -2,8 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Menu, X, Phone, Search, ChevronDown, Sparkles, Star, Mail, Mountain, SunMedium, ArrowRight } from 'lucide-react';
-import { treks } from '@/lib/data';
+import { Menu, X, Phone, Search, ChevronDown, Sparkles, Star, Mail, Mountain } from 'lucide-react';
 import BrandLogo from '@/components/BrandLogo';
 import { CONTACT, mailtoUrl, SOCIAL_LINKS, telUrl, whatsappUrl } from '@/lib/contact';
 import { DESK_HEADER_H, DESK_MAIN_H, DESK_TOP_H, CHROME_HIDDEN_CLASS } from '@/lib/layout';
@@ -23,6 +22,11 @@ import {
 } from '@/lib/nav-rich-menu';
 import RichNavDropdown from '@/components/nav/RichNavDropdown';
 import HeaderAuthControls from '@/components/HeaderAuthControls';
+import HeaderSearch from '@/components/HeaderSearch';
+import {
+  headerSearchFallbackHref,
+  searchHeaderContent,
+} from '@/lib/header-search';
 
 const TOP_STRIP_LINKS = [
   { label: 'Home', href: '/' },
@@ -247,27 +251,42 @@ export default function Header() {
   const mobileHeaderBorder =
     mobileHeaderWash > 0.55 ? '1px solid #e8ece9' : '1px solid transparent';
 
-  const searchItems = useMemo(() =>
-    treks.map(t => ({ id: t.id, title: t.title, sub: t.subtitle, type: t.type as 'trek' | 'yatra' })),
-  []);
+  const searchResults = useMemo(
+    () => searchHeaderContent(searchQuery, 20),
+    [searchQuery],
+  );
 
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase();
-    return searchItems.filter(s => s.title.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q));
-  }, [searchQuery, searchItems]);
-
-  const goSearch = (id: string, type: string) => {
+  const goSearch = (href: string) => {
     setMobSearch(false);
     setSearchQuery('');
-    router.push(`/${type === 'yatra' ? 'yatra' : 'treks'}/${id}`);
+    setSearchIdx(-1);
+    router.push(href);
   };
 
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx(i => Math.min(i + 1, searchResults.length - 1)); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => Math.max(i - 1, -1)); }
-    if (e.key === 'Enter' && searchIdx >= 0 && searchResults[searchIdx]) { goSearch(searchResults[searchIdx].id, searchResults[searchIdx].type); }
-    if (e.key === 'Escape') { setMobSearch(false); setSearchQuery(''); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchIdx((i) => Math.min(i + 1, searchResults.length - 1));
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchIdx((i) => Math.max(i - 1, 0));
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (searchIdx >= 0 && searchResults[searchIdx]) {
+        goSearch(searchResults[searchIdx].href);
+      } else if (searchResults[0]) {
+        goSearch(searchResults[0].href);
+      } else {
+        goSearch(headerSearchFallbackHref(searchQuery));
+      }
+    }
+    if (e.key === 'Escape') {
+      setMobSearch(false);
+      setSearchQuery('');
+      setSearchIdx(-1);
+    }
   };
 
   useEffect(() => {
@@ -488,40 +507,7 @@ export default function Header() {
             className="relative z-20 flex shrink-0 items-center gap-1.5 px-2 xl:gap-2 xl:px-3 min-[1760px]:gap-2.5 min-[1760px]:px-4"
             style={{ background: 'linear-gradient(180deg, #0b4a28 0%, #0a3d22 100%)' }}
           >
-            <form
-              role="search"
-              className="flex h-8 max-w-[min(100%,200px)] items-center rounded-full border border-white/20 bg-white pl-2.5 pr-0.5 shadow-sm xl:max-w-[220px] min-[1760px]:max-w-[280px]"
-              onSubmit={(e) => {
-                e.preventDefault();
-                setOpenDropdown(null);
-                setMobSearch(true);
-                setSearchIdx(-1);
-                requestAnimationFrame(() => searchRef.current?.focus());
-              }}
-            >
-              <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
-              <input
-                type="search"
-                name="q"
-                autoComplete="off"
-                aria-label="Search treks and routes"
-                placeholder="Search treks, route"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setSearchIdx(-1);
-                }}
-                onFocus={() => setOpenDropdown(null)}
-                className="min-w-0 flex-1 bg-transparent px-1.5 text-[11px] text-gray-800 outline-none placeholder:text-gray-400 xl:w-[96px] xl:flex-none min-[1760px]:w-[148px] min-[1760px]:text-[12px]"
-              />
-              <button
-                type="submit"
-                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-[#16a34a] px-2.5 text-[11px] font-bold text-white shadow-sm transition-colors hover:bg-[#15803d] xl:px-3"
-              >
-                Search
-                <ArrowRight className="h-3 w-3" aria-hidden />
-              </button>
-            </form>
+            <HeaderSearch onNavigate={() => setOpenDropdown(null)} />
 
             <a
               href={whatsappUrl()}
@@ -571,6 +557,17 @@ export default function Header() {
             <BrandLogo className="h-7 w-auto max-w-[156px] object-contain object-left" />
           </Link>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMobSearch(true);
+                setSearchIdx(-1);
+              }}
+              aria-label="Search treks"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-900 transition-colors hover:bg-black/5 active:scale-95"
+            >
+              <Search className="h-5 w-5" aria-hidden />
+            </button>
             <a
               href={telUrl(CONTACT.phones.booking[0].tel)}
               aria-label={`Call booking line ${CONTACT.phones.booking[0].display}`}
@@ -795,7 +792,7 @@ export default function Header() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div ref={searchListRef} className="max-h-[50vh] overflow-y-auto py-2 lg:max-h-[55vh]">
+            <div ref={searchListRef} className="max-h-[50vh] overflow-y-auto lg:max-h-[55vh]">
               {searchQuery.trim() && searchResults.length === 0 && (
                 <div className="px-5 py-8 text-center">
                   <Search className="mx-auto mb-2 h-8 w-8 text-gray-300" />
@@ -803,20 +800,27 @@ export default function Header() {
                     No results found for &ldquo;{searchQuery}&rdquo;
                   </p>
                   <p className="mt-1 text-xs text-gray-300">Try a different search term</p>
+                  <button
+                    type="button"
+                    onClick={() => goSearch(headerSearchFallbackHref(searchQuery))}
+                    className="mt-4 rounded-full bg-[#16a34a] px-4 py-2 text-xs font-semibold text-white"
+                  >
+                    Browse all treks
+                  </button>
                 </div>
               )}
               {!searchQuery.trim() && (
                 <div className="px-5 py-8 text-center">
                   <Mountain className="mx-auto mb-2 h-8 w-8 text-gray-300" />
-                  <p className="text-sm text-gray-400">Type to search treks &amp; yatras</p>
+                  <p className="text-sm text-gray-400">Type to search treks, lists &amp; destinations</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                     {[
-                      'Valley of Flowers',
                       'Kedarkantha',
+                      'September',
+                      'Uttarakhand',
+                      'Kashmir',
                       'Everest',
-                      'Hampta Pass',
                       'Kedarnath',
-                      'Triund',
                     ].map((tag) => (
                       <button
                         key={tag}
@@ -834,34 +838,24 @@ export default function Header() {
                   </div>
                 </div>
               )}
+              {searchQuery.trim() && searchResults.length > 0 && (
+                <div className="border-b border-gray-100 px-5 py-2.5 text-sm text-gray-500">
+                  Search results for{' '}
+                  <span className="font-medium text-gray-700">{searchQuery.trim()}</span>
+                </div>
+              )}
               {searchResults.map((s, i) => (
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => goSearch(s.id, s.type)}
+                  onClick={() => goSearch(s.href)}
                   onMouseEnter={() => setSearchIdx(i)}
-                  className={`flex w-full items-center gap-3 px-5 py-3 text-left transition-colors ${i === searchIdx ? 'bg-[#16a34a]/10' : 'hover:bg-gray-50'}`}
+                  className={`flex w-full items-start gap-3 border-b border-gray-100 px-5 py-3 text-left last:border-b-0 transition-colors ${i === searchIdx ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
                 >
-                  <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${s.type === 'yatra' ? 'bg-[#166534] text-[#dcfce7]' : 'bg-[#dcfce7] text-[#16a34a]'}`}
-                  >
-                    {s.type === 'yatra' ? (
-                      <SunMedium className="h-5 w-5" />
-                    ) : (
-                      <Mountain className="h-5 w-5" />
-                    )}
-                  </div>
+                  <Search className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" aria-hidden />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-gray-900">{s.title}</div>
-                    <div className="truncate text-xs text-gray-400">{s.sub}</div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.type === 'yatra' ? 'bg-[#166534] text-white' : 'bg-[#dcfce7] text-[#166534]'}`}
-                    >
-                      {s.type === 'yatra' ? 'Yatra' : 'Trek'}
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-gray-300" />
+                    <div className="truncate text-sm font-semibold text-gray-800">{s.title}</div>
+                    <div className="mt-0.5 truncate text-xs text-gray-400">{s.category}</div>
                   </div>
                 </button>
               ))}

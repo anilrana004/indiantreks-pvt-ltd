@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import FamilyTreksPageView from '@/components/special-programs/FamilyTreksPageView';
 import { getFamilyTreksLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'Family Treks in the Himalayas | Kids & Parents Welcome | Indian Treks',
   description:

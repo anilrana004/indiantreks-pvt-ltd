@@ -1,6 +1,8 @@
 import SacredYatraPageView from '@/components/yatra/SacredYatraPageView';
 import { getYatraLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Sacred Yatra Tours | Kedarnath, Char Dham & Himalayan Pilgrimage | Indian Treks',
   description:

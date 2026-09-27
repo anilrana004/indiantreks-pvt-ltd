@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { treks, trekDetailPath, type Trek } from '@/lib/data';
 import { getDepartureBatches, type TrekBatch } from '@/lib/batches';
@@ -43,11 +44,15 @@ import type { TrekTestimonial } from '@/lib/content/treks/types';
 import { getTrekExtended } from '@/lib/treks/get-trek-extended';
 import { getRouteProfile } from '@/lib/treks/get-route-profile';
 import { CollapsibleRichBlocks, RichBlocks, TrekExtendedNavItems, TrekRichSectionCard } from '@/components/treks/TrekExtendedSections';
-import TrekFitnessSection from '@/components/treks/TrekFitnessSection';
 import TrekPackingSection from '@/components/treks/TrekPackingSection';
 import TrekWhyChooseSection from '@/components/treks/TrekWhyChooseSection';
 import TrekRouteMapSection from '@/components/treks/TrekRouteMapSection';
 import TrekAltitudeChartSection from '@/components/treks/TrekAltitudeChartSection';
+
+const TrekFitnessSection = dynamic(() => import('@/components/treks/TrekFitnessSection'), {
+  ssr: false,
+  loading: () => null,
+});
 import TrekGuestReviews from '@/components/treks/TrekGuestReviews';
 import PackageReviewsSidebar from '@/components/treks/PackageReviewsSidebar';
 import { DESK_HEADER_H, MOBILE_HEADER_H, CHROME_HIDDEN_CLASS } from '@/lib/layout';
@@ -728,6 +733,18 @@ export default function TrekDetailContent({
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [gearLines, setGearLines] = useState<GearCartLine[]>([]);
   const [pickingGear, setPickingGear] = useState<GearItem | null>(null);
+
+  /** Prefer ?guests= from the URL without forcing the page into dynamic SSR. */
+  useEffect(() => {
+    try {
+      const guests = Number(new URLSearchParams(window.location.search).get('guests') || '');
+      if (Number.isFinite(guests) && guests >= 1) {
+        setMen(Math.min(20, Math.floor(guests)));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [trek.id]);
 
   useEffect(() => {
     const refresh = () => setGearLines(cartForTrek(trek.id, readGearCart()));

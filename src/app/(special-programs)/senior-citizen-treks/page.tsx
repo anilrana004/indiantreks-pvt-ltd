@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import SeniorCitizenTreksPageView from '@/components/special-programs/SeniorCitizenTreksPageView';
 import { getSeniorCitizenLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: 'Senior Citizen Treks | Indian Treks',
   description:

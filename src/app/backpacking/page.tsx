@@ -1,6 +1,8 @@
 import BackpackingTripsPageView from '@/components/backpacking/BackpackingTripsPageView';
 import { getBackpackingLandingArticles } from '@/lib/knowledge/landing-page-articles';
 
+export const revalidate = 300;
+
 export const metadata = {
   title: 'Backpacking Trips in India | Uttarakhand, Himachal, Spiti & Meghalaya | Indian Treks',
   description:
