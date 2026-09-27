@@ -1,5 +1,10 @@
-import { treks, trekDetailPath, type Trek } from '@/lib/data';
+import { treks, trekDetailPath, getTrekById, type Trek } from '@/lib/data';
 import { safeImage, trekPhoto } from '@/lib/safe-image';
+import {
+  HOME_HIMALAYAN_SEASONS,
+  HOME_HIMALAYAN_SEASON_TREK_IDS,
+  type HomeHimalayanSeason,
+} from '@/lib/content/home-himalayan-treks';
 
 /** Starting (Economic) price — what listing cards show. */
 export function trekPrice(trek: Trek) {
@@ -86,19 +91,16 @@ export function getTreksByRegion(region: Trek['region']) {
   return treks.filter((t) => t.region === region && t.type === 'trek').map(toCatalogCard);
 }
 
-export function getHimalayanBuckets() {
-  return {
-    'Uttarakhand Treks': treks
-      .filter((t) => t.region === 'uttarakhand' && t.type === 'trek' && !isExpedition(t))
-      .map(toCatalogCard),
-    'Himachal Treks': treks
-      .filter((t) => t.region === 'himachal' && t.type === 'trek')
-      .map(toCatalogCard),
-    'Kashmir Treks': treks
-      .filter((t) => t.region === 'kashmir' && t.type === 'trek')
-      .map(toCatalogCard),
-    Yatras: treks.filter(isYatra).map(toCatalogCard),
-  } as const;
+/** Homepage Himalayan carousel buckets — curated by season, not region. */
+export function getHimalayanSeasonBuckets(): Record<HomeHimalayanSeason, CatalogCard[]> {
+  const buckets = {} as Record<HomeHimalayanSeason, CatalogCard[]>;
+  for (const season of HOME_HIMALAYAN_SEASONS) {
+    buckets[season] = HOME_HIMALAYAN_SEASON_TREK_IDS[season]
+      .map((id) => getTrekById(id))
+      .filter((t): t is Trek => t != null && t.type === 'trek')
+      .map(toCatalogCard);
+  }
+  return buckets;
 }
 
 export function getBestSellerBuckets() {

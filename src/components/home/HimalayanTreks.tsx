@@ -3,7 +3,14 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Clock, MapPin } from 'lucide-react';
-import { getHimalayanBuckets } from '@/lib/catalog';
+import { getHimalayanSeasonBuckets } from '@/lib/catalog';
+import {
+  HOME_HIMALAYAN_DEFAULT_SEASON,
+  HOME_HIMALAYAN_SEASONS,
+  HOME_HIMALAYAN_SEASON_COPY,
+  HOME_HIMALAYAN_SECTION,
+  type HomeHimalayanSeason,
+} from '@/lib/content/home-himalayan-treks';
 import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 const diffColors: Record<string, string> = {
@@ -15,16 +22,21 @@ const diffColors: Record<string, string> = {
 };
 
 export default function HimalayanTreks() {
-  const buckets = useMemo(() => getHimalayanBuckets(), []);
+  const buckets = useMemo(() => getHimalayanSeasonBuckets(), []);
   const seasons = useMemo(
-    () => (Object.keys(buckets) as (keyof typeof buckets)[]).filter((k) => buckets[k].length > 0),
+    () => HOME_HIMALAYAN_SEASONS.filter((s) => (buckets[s]?.length ?? 0) > 0),
     [buckets],
   );
-  const [season, setSeason] = useState<(keyof typeof buckets)>(seasons[0] || 'Uttarakhand Treks');
+  const [season, setSeason] = useState<HomeHimalayanSeason>(() =>
+    seasons.includes(HOME_HIMALAYAN_DEFAULT_SEASON)
+      ? HOME_HIMALAYAN_DEFAULT_SEASON
+      : seasons[0] ?? 'Winter',
+  );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const items = buckets[season] || [];
+  const copy = HOME_HIMALAYAN_SEASON_COPY[season];
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
@@ -83,13 +95,25 @@ export default function HimalayanTreks() {
       <div className="container mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6 lg:mb-8 px-4 lg:px-0">
           <div>
-            <p className="text-[#16a34a] font-semibold text-xs lg:text-sm tracking-widest uppercase mb-1">HIMALAYAN TREKS</p>
-            <h2 className="text-xl lg:text-3xl font-bold text-[#000000]">Himalayan Treks</h2>
+            <p className="text-[#16a34a] font-semibold text-xs lg:text-sm tracking-widest uppercase mb-1">
+              {HOME_HIMALAYAN_SECTION.kicker}
+            </p>
+            <h2 className="text-xl lg:text-3xl font-bold text-[#000000]">
+              {copy.title}
+              <span className="ml-2 text-sm lg:text-base font-medium text-gray-400">
+                {copy.months}
+              </span>
+            </h2>
           </div>
-          <Link href="/treks" className="text-[#16a34a] text-sm font-semibold hover:text-[#15803d] whitespace-nowrap">View All Himalayan Treks &rarr;</Link>
+          <Link
+            href={HOME_HIMALAYAN_SECTION.viewAllHref}
+            className="text-[#16a34a] text-sm font-semibold hover:text-[#15803d] whitespace-nowrap"
+          >
+            {HOME_HIMALAYAN_SECTION.viewAllLabel} &rarr;
+          </Link>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto scrollbar-none pb-2 px-4 lg:px-0 mb-6" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex justify-center gap-2 overflow-x-auto scrollbar-none pb-2 px-4 lg:px-0 mb-6" style={{ scrollbarWidth: 'none' }}>
           {seasons.map((s) => (
             <button
               key={s}
@@ -110,7 +134,7 @@ export default function HimalayanTreks() {
           ref={scrollerRef}
           className="flex gap-3 lg:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 px-4 lg:px-0"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-          aria-label="Himalayan treks carousel"
+          aria-label={`${copy.title} carousel`}
         >
           {items.map((t) => (
             <Link

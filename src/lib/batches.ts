@@ -30,6 +30,11 @@ const MONTHS_SHORT = [
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** How far ahead seasonal fixed calendars may roll. */
+const FIXED_HORIZON_MONTHS = 18;
+/** Max years a past seasonal row may shift forward. */
+const FIXED_ROLL_YEARS_MAX = 4;
+
 /** Published fixed calendars — when present, replace generated placeholders. */
 const FIXED_DEPARTURE_SCHEDULES: Record<
   string,
@@ -65,14 +70,18 @@ function toISO(d: Date) {
 }
 
 function addDays(d: Date, days: number) {
-  const next = new Date(d);
-  next.setDate(next.getDate() + days);
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
   return next;
 }
 
-function parseISODate(iso: string) {
+function addMonths(d: Date, months: number) {
+  return new Date(d.getFullYear(), d.getMonth() + months, d.getDate());
+}
+
+/** Parse YYYY-MM-DD as a local calendar date (avoids UTC off-by-one). */
+export function parseISODate(iso: string) {
   const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(y, (m || 1) - 1, d || 1);
 }
 
 function formatRange(start: Date, end: Date) {
@@ -91,10 +100,21 @@ function statusFromSeats(seatsLeft: number, capacity: number): BatchStatus {
   return 'available';
 }
 
-function todayStart() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
+export function todayStart(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** True when the departure start day is today or later (local calendar). */
+export function isUpcomingDepartureDate(iso: string, now = new Date()) {
+  return parseISODate(iso) >= todayStart(now);
+}
+
+/** Drop past starts so months/dates that are over never reach the UI. */
+export function filterUpcomingBatches(batches: TrekBatch[], now = new Date()): TrekBatch[] {
+  const today = todayStart(now);
+  return batches
+    .filter((batch) => parseISODate(batch.startDate) >= today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
 function toTrekBatch(
@@ -118,17 +138,34 @@ function toTrekBatch(
   };
 }
 
+/**
+ * Roll a seasonal row forward by a whole number of years (keeps day/month).
+ */
+function shiftYears(start: Date, end: Date, years: number): { start: Date; end: Date } {
+  const durationDays = Math.max(
+    0,
+    Math.round((end.getTime() - start.getTime()) / 86_400_000),
+  );
+  const nextStart = new Date(start.getFullYear() + years, start.getMonth(), start.getDate());
+  return { start: nextStart, end: addDays(nextStart, durationDays) };
+}
+
 /** Upcoming published batches for a trek, or null when no fixed calendar exists. */
-function getFixedDepartureBatches(trek: Trek): TrekBatch[] | null {
+function getFixedDepartureBatches(trek: Trek, now = new Date()): TrekBatch[] | null {
   const schedule = FIXED_DEPARTURE_SCHEDULES[trek.id];
   if (!schedule) return null;
 
-  const today = todayStart();
-  return schedule.departures
-    .map((row) => {
-      const start = parseISODate(row.start);
-      const end = parseISODate(row.end);
-      return toTrekBatch(
+  const today = todayStart(now);
+  const horizon = addMonths(today, FIXED_HORIZON_MONTHS);
+
+  const buildForShift = (years: number): TrekBatch[] => {
+    const byStart = new Map<string, TrekBatch>();
+    for (const row of schedule.departures) {
+      const baseStart = parseISODate(row.start);
+      const baseEnd = parseISODate(row.end);
+      const { start, end } = years === 0 ? { start: baseStart, end: baseEnd } : shiftYears(baseStart, baseEnd, years);
+      if (start < today || start > horizon) continue;
+      const batch = toTrekBatch(
         trek.id,
         start,
         end,
@@ -136,26 +173,35 @@ function getFixedDepartureBatches(trek: Trek): TrekBatch[] | null {
         schedule.capacity,
         row.status,
       );
-    })
-    .filter((batch) => parseISODate(batch.startDate) >= today)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+      if (!byStart.has(batch.startDate)) byStart.set(batch.startDate, batch);
+    }
+    return [...byStart.values()].sort((a, b) => a.startDate.localeCompare(b.startDate));
+  };
+
+  // Prefer the current published season while any date is still upcoming.
+  // Only when the whole season is over do we roll forward a year (so Nov returns next year).
+  for (let years = 0; years <= FIXED_ROLL_YEARS_MAX; years++) {
+    const batches = buildForShift(years);
+    if (batches.length > 0) return batches;
+  }
+
+  return [];
 }
 
 /**
- * Builds 5 upcoming monthly departure batches for any trek / yatra / international trip.
+ * Builds upcoming monthly departure batches for any trek / yatra / international trip.
  * Start days rotate by trek so listings feel distinct but stay deterministic.
  */
-export function getMonthlyBatches(trek: Trek, count = 5): TrekBatch[] {
-  const fixed = getFixedDepartureBatches(trek);
-  if (fixed) return fixed.slice(0, count);
+export function getMonthlyBatches(trek: Trek, count = 5, now = new Date()): TrekBatch[] {
+  const fixed = getFixedDepartureBatches(trek, now);
+  if (fixed) return filterUpcomingBatches(fixed, now).slice(0, count);
 
   const tripDays = Math.max(trek.days || 1, 1);
   const seed = hashId(trek.id);
   const startDayOptions = [5, 8, 12, 15, 18, 22];
   const capacity = 20 + (seed % 5) * 2; // 20-28
 
-  const today = todayStart();
-
+  const today = todayStart(now);
   const batches: TrekBatch[] = [];
   let monthOffset = 0;
 
@@ -174,25 +220,30 @@ export function getMonthlyBatches(trek: Trek, count = 5): TrekBatch[] {
     batches.push(toTrekBatch(trek.id, start, end, seatsLeft, capacity, status));
   }
 
-  return batches;
+  return filterUpcomingBatches(batches, now);
 }
 
 /**
  * Builds several departures per month for the detail-page date picker, so each
  * month exposes a real choice of dates rather than a single batch.
- * Treks with a published fixed calendar return the full upcoming schedule.
+ * Treks with a published fixed calendar return the full upcoming schedule
+ * (past days/months removed; seasonal rows roll into the next year).
  */
-export function getDepartureBatches(trek: Trek, months = 4, perMonth = 3): TrekBatch[] {
-  const fixed = getFixedDepartureBatches(trek);
-  if (fixed) return fixed;
+export function getDepartureBatches(
+  trek: Trek,
+  months = 4,
+  perMonth = 3,
+  now = new Date(),
+): TrekBatch[] {
+  const fixed = getFixedDepartureBatches(trek, now);
+  if (fixed) return filterUpcomingBatches(fixed, now);
 
   const tripDays = Math.max(trek.days || 1, 1);
   const seed = hashId(trek.id);
   const startDayOptions = [3, 6, 9, 12, 15, 18, 21, 24, 27];
   const capacity = 20 + (seed % 5) * 2;
 
-  const today = todayStart();
-
+  const today = todayStart(now);
   const batches: TrekBatch[] = [];
 
   for (let monthOffset = 0; monthOffset < months + 2 && batches.length < months * perMonth; monthOffset++) {
@@ -214,7 +265,7 @@ export function getDepartureBatches(trek: Trek, months = 4, perMonth = 3): TrekB
     }
   }
 
-  return batches.sort((a, b) => a.startDate.localeCompare(b.startDate));
+  return filterUpcomingBatches(batches, now);
 }
 
 export const batchStatusMeta: Record<BatchStatus, { label: string; className: string }> = {

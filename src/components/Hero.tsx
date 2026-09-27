@@ -3,11 +3,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import type { LucideIcon } from 'lucide-react';
 import {
-  Search, Star, Users,
-  ArrowRight, Calendar, Phone,
-  Mountain, Footprints, SunMedium, Quote, X, Menu,
+  Search, Star,
+  ArrowRight, Phone,
+  Mountain, SunMedium, X, Menu,
 } from 'lucide-react';
 import { treks } from '@/lib/data';
 import BrandLogo from '@/components/BrandLogo';
@@ -15,51 +14,29 @@ import { CONTACT, telUrl } from '@/lib/contact';
 import { DESK_HEADER_H } from '@/lib/layout';
 import {
   HERO_CATEGORY_ITEMS,
-  HERO_DESK_SLIDES,
   HERO_EXPLORE_PROMOS,
   HERO_MOB_BANNERS,
   HERO_SEARCH_DESTINATIONS,
+  getHeroDeskSlides,
 } from '@/lib/content/home-hero';
 import { HERO_COLLAB_ITEMS } from '@/lib/content/home-hero-collab';
 import { HERO_COLLAB_LUCIDE_ICONS } from '@/lib/icons/lucide-content-icons';
 import Banners from '@/components/Banners';
 import CategoryScroller from '@/components/home/CategoryScroller';
-import HeroSearchBar from '@/components/home/HeroSearchBar';
 import '@/components/home/hero-mobile-banner.css';
 
 const mobBanners = HERO_MOB_BANNERS;
 const explorePromos = HERO_EXPLORE_PROMOS;
 const catItems = HERO_CATEGORY_ITEMS;
 const collabItems = HERO_COLLAB_ITEMS;
-const deskSlides = HERO_DESK_SLIDES;
 const destinations = HERO_SEARCH_DESTINATIONS;
 
 type SearchCategory = 'all' | 'trek' | 'yatra' | 'international';
 
-function HeroInfoRow({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <Icon className={`w-4 h-4 ${accent ? 'text-[#4ade80]' : 'text-white/40'}`} />
-      <div>
-        <div className="text-[10px] text-white/40 font-medium uppercase tracking-wider">{label}</div>
-        <div className={`text-sm font-semibold ${accent ? 'text-[#4ade80]' : 'text-white/80'}`}>{value}</div>
-      </div>
-    </div>
-  );
-}
-
 export default function Hero() {
   const router = useRouter();
+  /* Resolve slides inside the component so HMR / season flips always refresh. */
+  const deskSlides = useMemo(() => getHeroDeskSlides(), []);
   /* -- shared state -- */
   const [mobSlide, setMobSlide] = useState(0);
   const [collabIdx, setCollabIdx] = useState(0);
@@ -142,10 +119,6 @@ export default function Hero() {
   /* ======================== DESKTOP LAYOUT ======================== */
   const slide = deskSlides[deskSlide];
   const href = `/${slide.t === 'yatra' ? 'yatra' : 'treks'}/${slide.id}`;
-  const diffBadge = (d: string) => {
-    const map: Record<string, string> = { 'Easy': 'bg-green-500/20 text-green-300', 'Easy-Moderate': 'bg-emerald-500/20 text-emerald-300', 'Moderate': 'bg-yellow-500/20 text-yellow-300', 'Moderate-Difficult': 'bg-orange-500/20 text-orange-300', 'Difficult': 'bg-red-500/20 text-red-300' };
-    return map[d] || 'bg-gray-500/20 text-gray-300';
-  };
 
   const desktop = (
     <section
@@ -154,7 +127,7 @@ export default function Hero() {
     >
       {/* Background image layer */}
       {deskSlides.map((s, i) => (
-        <div key={s.id}
+        <div key={`${s.id}-${s.img}`}
           className={`absolute inset-0 transition-all duration-1000 ${i === deskSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}>
           <Image
             src={s.img}
@@ -163,104 +136,48 @@ export default function Hero() {
             priority={i === 0}
             sizes="100vw"
             referrerPolicy="no-referrer"
-            className="object-cover"
+            className="object-cover object-center"
           />
         </div>
       ))}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/15" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/45 to-black/65" />
 
-      {/* Main content area: left info + right photo */}
+      {/* Main content — centered after feature photo removal */}
       <div className="relative z-10 flex min-h-0 flex-1 items-center py-4">
-        <div className="container mx-auto w-full">
-          <div className="flex items-center gap-10 w-full">
+        <div className="container mx-auto w-full px-4">
+          <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center" key={slide.id}>
+            <span className="mb-3 inline-block rounded-full border border-[#4ade80]/30 bg-[#16a34a]/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#4ade80]">
+              {slide.t === 'yatra' ? 'Sacred Yatra' : 'Himalayan Trek'}
+            </span>
 
-            {/* -- LEFT: Trek info -- */}
-            <div className="flex-1 max-w-xl" key={slide.id}>
-              <span className="inline-block text-[10px] font-semibold tracking-[0.2em] uppercase text-[#4ade80] bg-[#16a34a]/15 border border-[#4ade80]/30 px-3 py-1 rounded-full mb-3">
-                {slide.t === 'yatra' ? 'Sacred Yatra' : 'Himalayan Trek'}
-              </span>
+            <p className="mb-1 text-sm font-medium tracking-wide text-white/80 xl:text-lg">
+              Book your trip to
+            </p>
+            <h1 className="mb-2.5 whitespace-nowrap text-4xl font-bold leading-[1.1] text-[#4ade80] drop-shadow-[0_2px_12px_rgba(22,163,74,0.35)] xl:text-5xl">
+              {slide.name}
+            </h1>
 
-              <p className="text-white/80 text-sm xl:text-lg font-medium tracking-wide mb-1">
-                Book your trip to
-              </p>
-              <h1 className="font-bold text-[#4ade80] text-4xl xl:text-5xl 2xl:text-6xl leading-[1.1] mb-2.5 drop-shadow-[0_2px_12px_rgba(22,163,74,0.35)]">
-                {slide.name}
-              </h1>
+            <p className="mb-6 max-w-xl text-sm leading-relaxed text-white/50 xl:text-base">
+              {slide.sub}
+            </p>
 
-              <p className="text-white/50 text-sm xl:text-base leading-relaxed mb-5 max-w-lg">
-                {slide.sub}
-              </p>
-
-              {/* Info grid - 2x3 */}
-              <div className="grid grid-cols-2 gap-x-8 gap-y-2.5 mb-5 max-w-md">
-                <HeroInfoRow icon={Star} label="Rating" value={`${slide.rating} (${slide.reviews} reviews)`} accent />
-                <HeroInfoRow icon={Calendar} label="Duration" value={slide.duration} />
-                <HeroInfoRow icon={Mountain} label="Max Altitude" value={slide.altitude} />
-                <HeroInfoRow icon={Footprints} label="Distance" value={slide.distance} />
-                <HeroInfoRow icon={SunMedium} label="Best Season" value={slide.season} />
-                <HeroInfoRow icon={Users} label="Group Size" value={slide.group} />
-              </div>
-
-              <div className="flex items-center gap-2.5 mb-4">
-                <span className={`text-[11px] font-semibold px-3 py-1 rounded-full ${diffBadge(slide.difficulty)}`}>
-                  {slide.difficulty}
-                </span>
-                <span className="text-white/30 text-xs">|</span>
-                <span className="text-white/50 text-xs">{slide.t === 'yatra' ? 'Pilgrimage' : 'Trek'}</span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Link href={href}
-                  className="it-retro-btn it-retro-btn--primary it-retro-btn--pill it-retro-btn--md">
-                  View Full Details
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link href={`/booking/${slide.id}`}
-                  className="it-retro-btn it-retro-btn--glass it-retro-btn--pill it-retro-btn--md">
-                  Book Now
-                </Link>
-              </div>
+            <div className="flex items-center justify-center gap-3">
+              <Link href={href}
+                className="it-retro-btn it-retro-btn--primary it-retro-btn--pill it-retro-btn--md">
+                View Full Details
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link href={`/booking/${slide.id}`}
+                className="it-retro-btn it-retro-btn--glass it-retro-btn--pill it-retro-btn--md">
+                Book Now
+              </Link>
             </div>
-
-            {/* -- RIGHT: Feature photo -- */}
-            <div className="hidden xl:block w-[300px] xl:w-[360px] 2xl:w-[400px] shrink-0">
-              <div className="relative aspect-[3/4] max-h-[min(52vh,480px)] mx-auto rounded-2xl overflow-hidden shadow-2xl shadow-black/40 group/ph">
-                {deskSlides.map((s, i) => (
-                  <div key={s.id}
-                    className={`absolute inset-0 transition-all duration-1000 ${i === deskSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-                    <Image
-                      src={s.featureImg}
-                      alt={s.name}
-                      fill
-                      sizes="400px"
-                      referrerPolicy="no-referrer"
-                      className="object-cover"
-                    />
-                  </div>
-                ))}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="flex items-center gap-2 text-white">
-                    <Quote className="w-3.5 h-3.5 text-[#4ade80]" />
-                    <span className="text-xs text-white/70 font-medium leading-tight">
-                      {slide.t === 'yatra' ? 'Spiritual journey' : 'Adventure awaits'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
       </div>
 
-      {/* Search bar - in normal flow so it never covers CTAs */}
-      <div className="relative z-10 shrink-0 container mx-auto px-4 pb-3 pt-1">
-        <HeroSearchBar />
-      </div>
-
-      {/* Dots + hashtag */}
-      <div className="relative z-10 flex shrink-0 items-center justify-between px-6 pb-4 xl:px-10 2xl:px-14">
+      {/* Dots */}
+      <div className="relative z-10 flex shrink-0 items-center justify-center px-6 pb-4">
         <div className="flex items-center gap-3">
           <div className="flex gap-2">
             {deskSlides.map((_, i) => (
@@ -268,9 +185,8 @@ export default function Hero() {
                 className={`h-1.5 rounded-full transition-all ${i === deskSlide ? 'bg-[#4ade80] w-6' : 'bg-white/30 hover:bg-white/50 w-1.5'}`} />
             ))}
           </div>
-          <span className="text-white/40 text-xs font-medium tracking-wide hidden xl:block">{slide.name}</span>
+          <span className="hidden text-xs font-medium tracking-wide text-white/40 xl:block">{slide.name}</span>
         </div>
-        <span className="text-white/40 text-xs font-medium bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full">#wravelerforlife</span>
       </div>
     </section>
   );
@@ -474,7 +390,7 @@ export default function Hero() {
                   <Mountain className="w-8 h-8 mx-auto text-gray-300 mb-2" />
                   <p className="text-sm text-gray-400">Type to search or select a category below</p>
                   <div className="flex flex-wrap justify-center gap-1.5 mt-4">
-                    {['Kedarkantha', 'Valley of Flowers', 'Everest', 'Hampta Pass', 'Kedarnath', 'Triund', 'Chopta', 'Annapurna'].map(tag => (
+                    {destinations.map(tag => (
                       <button key={tag} type="button" onClick={() => { setSearchQuery(tag); setSearchIdx(-1); searchRef.current?.focus(); }}
                         className="text-xs bg-gray-100 hover:bg-[#16a34a]/10 hover:text-[#166534] text-gray-500 px-3 py-1.5 rounded-full transition-colors">
                         {tag}

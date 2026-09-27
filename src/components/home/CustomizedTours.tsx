@@ -68,18 +68,18 @@ function buildDestinations(kind: 'International' | 'India'): DestCard[] {
 }
 
 export default function CustomizedTours() {
-  const [tab, setTab] = useState<'International' | 'India'>('International');
+  const [tab, setTab] = useState<'International' | 'India'>('India');
   const items = useMemo(() => buildDestinations(tab), [tab]);
 
   return (
     <section className="py-8 lg:py-16 bg-gray-50">
       <div className="container mx-auto">
-        <div className="text-center mb-6 lg:mb-8">
+        <div className="mb-6 lg:mb-8 px-4 lg:px-0">
           <p className="text-[#16a34a] font-semibold text-xs lg:text-sm tracking-widest uppercase mb-1">CUSTOMISED TOURS</p>
           <h2 className="text-xl lg:text-3xl font-bold text-[#000000]">Get a Customised Tour Package</h2>
         </div>
         <div className="flex justify-center gap-2 mb-6">
-          {(['International', 'India'] as const).map((t) => (
+          {(['India', 'International'] as const).map((t) => (
             <button
               key={t}
               type="button"

@@ -6,7 +6,7 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { treks, trekDetailPath, type Trek } from '@/lib/data';
-import { getDepartureBatches, type TrekBatch } from '@/lib/batches';
+import { getDepartureBatches, parseISODate, type TrekBatch } from '@/lib/batches';
 import { blogDate, blogPath, blogThumb, getRelatedPosts, type RelatedPost } from '@/lib/blog';
 import { safeImage, trekPhoto } from '@/lib/safe-image';
 import { photos } from '@/lib/media';
@@ -250,8 +250,8 @@ function monthTabMeta(label: string) {
 }
 
 function batchDateRange(batch: TrekBatch) {
-  const start = new Date(batch.startDate);
-  const end = new Date(batch.endDate);
+  const start = parseISODate(batch.startDate);
+  const end = parseISODate(batch.endDate);
   return {
     startDay: start.getDate(),
     endDay: end.getDate(),
@@ -722,7 +722,10 @@ export default function TrekDetailContent({
   });
   /** Months grouped for the fixed-departures accordion (same batches as the booking card). */
   const departureMonths = useMemo(
-    () => months.map((label) => ({ label, items: batches.filter((b) => b.monthLabel === label) })),
+    () =>
+      months
+        .map((label) => ({ label, items: batches.filter((b) => b.monthLabel === label) }))
+        .filter((group) => group.items.length > 0),
     [batches, months],
   );
   const [dateToast, setDateToast] = useState<string | null>(null);
@@ -800,6 +803,24 @@ export default function TrekDetailContent({
     const firstOpen = inMonth.find((b) => b.status !== 'sold-out') ?? inMonth[0];
     setBatchId(firstOpen?.id ?? null);
   }, [trek.id]); // batches/months are derived from trek — read fresh when id changes
+
+  // If the active month/date fell into the past (or emptied), snap to the next upcoming group.
+  useEffect(() => {
+    if (!months.length) {
+      if (month) setMonth('');
+      if (batchId) setBatchId(null);
+      return;
+    }
+    if (!months.includes(month)) {
+      selectMonth(months[0]);
+      return;
+    }
+    if (batchId && !batches.some((b) => b.id === batchId)) {
+      const inMonth = batches.filter((b) => b.monthLabel === month);
+      const firstOpen = inMonth.find((b) => b.status !== 'sold-out') ?? inMonth[0];
+      setBatchId(firstOpen?.id ?? null);
+    }
+  }, [batches, batchId, month, months, selectMonth]);
 
   // ---- Sticky section nav -------------------------------------------------
   // Roopkund Heaven flow: site chrome hides on scroll-down / shows on scroll-up.

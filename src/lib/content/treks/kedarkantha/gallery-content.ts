@@ -1,4 +1,4 @@
-import { cloudinaryAssetUrl } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Kedarkantha trek photos — jum1mpl0 Cloudinary collection.
@@ -45,6 +45,14 @@ export const KEDARKANTHA_GALLERY: readonly string[] = uniqueGalleryUrls(KEDARKAN
 
 /** Primary hero — summit celebration at 12,500 ft. */
 export const KEDARKANTHA_HERO = KEDARKANTHA_GALLERY[0];
+
+/**
+ * Homepage desktop hero background.
+ * Exact delivery URL (no auto-gravity crop) so object-cover matches the source frame.
+ */
+export const KEDARKANTHA_HOME_HERO = ensureCldAuto(
+  'https://res.cloudinary.com/jum1mpl0/image/upload/v1790522425/shubham-dhage-9RJA4B3hDAM-unsplash.jpg',
+);
 
 /** Secondary hero panel — Juda Ka Talab winter scene. */
 export const KEDARKANTHA_FEATURE = KEDARKANTHA_GALLERY[2];
