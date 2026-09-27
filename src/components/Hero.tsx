@@ -51,7 +51,14 @@ export default function Hero() {
   const searchListRef = useRef<HTMLDivElement>(null);
 
   const searchItems = useMemo(() =>
-    treks.map(t => ({ id: t.id, title: t.title, type: t.type, sub: t.subtitle, region: t.region })), []);
+    treks.map(t => ({
+      id: t.id,
+      title: t.title,
+      type: t.type,
+      sub: t.subtitle,
+      region: t.region,
+      image: t.cardImage || t.images[0],
+    })), []);
 
   const searchResults = useMemo(() => {
     let items = searchItems;
@@ -448,9 +455,15 @@ export default function Hero() {
                 <button key={s.id} type="button" onClick={() => goSearch(s.id, s.type)}
                   onMouseEnter={() => setSearchIdx(i)}
                   className={`w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ${i === searchIdx ? 'bg-[#16a34a]/10' : 'hover:bg-gray-50'}`}>
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.type === 'yatra' ? 'bg-[#166534] text-[#dcfce7]' : 'bg-[#dcfce7] text-[#16a34a]'}`}>
-                    {s.type === 'yatra' ? <SunMedium className="w-5 h-5" /> : <Mountain className="w-5 h-5" />}
-                  </div>
+                  <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                    <Image
+                      src={s.image}
+                      alt=""
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-900 truncate">{s.title}</div>
                     <div className="text-xs text-gray-400 truncate">{s.sub}</div>

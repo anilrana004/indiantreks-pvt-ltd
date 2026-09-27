@@ -11,8 +11,10 @@ import {
   type KeyboardEvent,
 } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import {
   headerSearchFallbackHref,
   searchHeaderContent,
@@ -168,14 +170,25 @@ export default function HeaderSearch({ className = '', onNavigate }: Props) {
                       setQuery('');
                       onNavigate?.();
                     }}
-                    className={`flex w-full items-start gap-2.5 border-b border-gray-100 px-3.5 py-2.5 text-left last:border-b-0 transition-colors ${
+                    className={`flex w-full items-center gap-2.5 border-b border-gray-100 px-3.5 py-2.5 text-left last:border-b-0 transition-colors ${
                       i === activeIdx ? 'bg-gray-50' : 'hover:bg-gray-50'
                     }`}
                   >
                     <Search
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400"
+                      className="h-3.5 w-3.5 shrink-0 text-gray-400"
                       aria-hidden
                     />
+                    <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-gray-100">
+                      <Image
+                        src={hit.image}
+                        alt=""
+                        fill
+                        sizes="56px"
+                        placeholder="blur"
+                        blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                        className="object-cover"
+                      />
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-gray-800">
                         {hit.title}

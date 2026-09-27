@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Menu, X, Phone, Search, ChevronDown, Sparkles, Star, Mail, Mountain } from 'lucide-react';
 import BrandLogo from '@/components/BrandLogo';
@@ -10,6 +11,7 @@ import { isSupportHubPath } from '@/lib/support-hub-nav';
 import { isBlogPath } from '@/lib/blog-nav';
 import { isCorporateHubPath } from '@/lib/corporate-hub-nav';
 import { isSpecialProgramsHubPath } from '@/lib/special-programs-hub-nav';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import {
   CUSTOMIZED_RICH,
   GROUP_TRIPS_RICH,
@@ -850,9 +852,20 @@ export default function Header() {
                   type="button"
                   onClick={() => goSearch(s.href)}
                   onMouseEnter={() => setSearchIdx(i)}
-                  className={`flex w-full items-start gap-3 border-b border-gray-100 px-5 py-3 text-left last:border-b-0 transition-colors ${i === searchIdx ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
+                  className={`flex w-full items-center gap-3 border-b border-gray-100 px-5 py-3 text-left last:border-b-0 transition-colors ${i === searchIdx ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
                 >
-                  <Search className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                  <Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                  <span className="relative h-12 w-[3.75rem] shrink-0 overflow-hidden rounded-md bg-gray-100">
+                    <Image
+                      src={s.image}
+                      alt=""
+                      fill
+                      sizes="60px"
+                      placeholder="blur"
+                      blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                      className="object-cover"
+                    />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-gray-800">{s.title}</div>
                     <div className="mt-0.5 truncate text-xs text-gray-400">{s.category}</div>

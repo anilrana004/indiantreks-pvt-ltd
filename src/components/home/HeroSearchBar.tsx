@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   Search,
   MapPin,
@@ -19,9 +20,8 @@ import {
   ChevronDown,
   Minus,
   Plus,
-  Mountain,
-  SunMedium,
 } from 'lucide-react';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import { treks, trekDetailPath, type Trek } from '@/lib/data';
 
 type DestOption = {
@@ -30,6 +30,7 @@ type DestOption = {
   sub: string;
   type: Trek['type'];
   region: Trek['region'];
+  image: string;
 };
 
 const DEST_OPTIONS: DestOption[] = treks.map((t) => ({
@@ -38,6 +39,7 @@ const DEST_OPTIONS: DestOption[] = treks.map((t) => ({
   sub: t.subtitle || t.state,
   type: t.type,
   region: t.region,
+  image: t.cardImage || t.images[0],
 }));
 
 const REGION_ALIASES: Record<string, Trek['region']> = {
@@ -295,18 +297,16 @@ export default function HeroSearchBar() {
                         i === activeIdx ? 'bg-[#16a34a]/10' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                          opt.type === 'yatra'
-                            ? 'bg-[#166534] text-[#dcfce7]'
-                            : 'bg-[#dcfce7] text-[#16a34a]'
-                        }`}
-                      >
-                        {opt.type === 'yatra' ? (
-                          <SunMedium className="h-4 w-4" />
-                        ) : (
-                          <Mountain className="h-4 w-4" />
-                        )}
+                      <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                        <Image
+                          src={opt.image}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          placeholder="blur"
+                          blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                          className="object-cover"
+                        />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-gray-900">
