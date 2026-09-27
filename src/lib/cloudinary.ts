@@ -50,6 +50,23 @@ export function isCloudinaryUrl(src: string): boolean {
   return /res\.cloudinary\.com\/[^/]+\/image\//i.test(src.trim());
 }
 
+/**
+ * Non-destructive: prepend f_auto,q_auto on Cloudinary upload/fetch URLs when missing.
+ * Does not replace existing crop/size transforms (avoids visual crop shifts).
+ */
+export function ensureCldAuto(src: string): string {
+  const trimmed = normalizeCloudinaryCloud(src.trim());
+  if (!trimmed || !isCloudinaryUrl(trimmed)) return trimmed;
+  if (/(?:^|[,/])f_auto(?:$|[,/])/.test(trimmed) && /(?:^|[,/])q_auto(?:$|[,/])/.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed.replace(/\/image\/(upload|fetch)\//i, '/image/$1/f_auto,q_auto/');
+}
+
+/** Tiny neutral JPEG for next/image `placeholder="blur"` on gallery/card surfaces. */
+export const STOREFRONT_BLUR_DATA_URL =
+  'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGcP//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//Z';
+
 function buildTransformSegment(opts?: CldOptions): string {
   const params: string[] = ['f_auto'];
   if (opts?.quality === 'auto' || opts?.quality === undefined) {

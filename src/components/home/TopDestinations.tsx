@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { MapPin, Star, Clock } from 'lucide-react';
 import { photos } from '@/lib/media';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 const destinations = [
   { name: 'Kedarkantha', state: 'Uttarakhand', rating: '4.9', dur: '5D/4N', price: 6999, img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80', href: '/treks/kedarkantha' },
@@ -23,7 +25,15 @@ export default function TopDestinations() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
           {destinations.map(d => (
             <Link key={d.name} href={d.href} className="group rounded-2xl overflow-hidden transition-all duration-300 relative aspect-[4/5]">
-              <img src={d.img} alt={d.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <Image
+                src={d.img}
+                alt={d.name}
+                fill
+                sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
+                placeholder="blur"
+                blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-xs font-bold px-2.5 py-1 rounded-full text-[#16a34a]">
                 {d.state}

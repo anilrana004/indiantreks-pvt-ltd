@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -155,7 +156,15 @@ export default function Hero() {
       {deskSlides.map((s, i) => (
         <div key={s.id}
           className={`absolute inset-0 transition-all duration-1000 ${i === deskSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}>
-          <img src={s.img} alt={s.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+          <Image
+            src={s.img}
+            alt={s.name}
+            fill
+            priority={i === 0}
+            sizes="100vw"
+            referrerPolicy="no-referrer"
+            className="object-cover"
+          />
         </div>
       ))}
       <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/15" />
@@ -219,7 +228,14 @@ export default function Hero() {
                 {deskSlides.map((s, i) => (
                   <div key={s.id}
                     className={`absolute inset-0 transition-all duration-1000 ${i === deskSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-                    <img src={s.featureImg} alt={s.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    <Image
+                      src={s.featureImg}
+                      alt={s.name}
+                      fill
+                      sizes="400px"
+                      referrerPolicy="no-referrer"
+                      className="object-cover"
+                    />
                   </div>
                 ))}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -368,13 +384,14 @@ export default function Hero() {
                 }}
                 tabIndex={i === mobSlide ? 0 : -1}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={slide.image}
                   alt={slide.title}
-                  decoding="async"
+                  fill
+                  priority={i === 0}
+                  sizes="100vw"
                   referrerPolicy="no-referrer"
-                  className="absolute inset-0 h-full w-full object-cover"
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
                 <div className="absolute inset-0 flex flex-col justify-end p-4 pb-8">
@@ -480,7 +497,13 @@ export default function Hero() {
                         <Link key={t.id} href={`/${t.type === 'yatra' ? 'yatra' : 'treks'}/${t.id}`}
                           onClick={() => { setShowSearch(false); setSearchQuery(''); }}
                           className="group relative rounded-xl overflow-hidden aspect-[4/5]">
-                          <img src={t.images[0]} alt={t.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <Image
+                            src={t.images[0]}
+                            alt={t.title}
+                            fill
+                            sizes="120px"
+                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                           <div className="absolute top-2 left-2">
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.type === 'yatra' ? 'bg-[#16a34a] text-white' : 'bg-emerald-500/80 text-white'}`}>

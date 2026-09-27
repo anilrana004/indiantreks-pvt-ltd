@@ -1,8 +1,10 @@
 'use client';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { treks } from '@/lib/data';
 import { trekCover, trekPrice } from '@/lib/catalog';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 type DestCard = { name: string; count: number; price: number; img: string; href: string };
 
@@ -101,8 +103,15 @@ export default function CustomizedTours() {
                 className="group relative w-[220px] lg:w-auto rounded-2xl overflow-hidden shrink-0 transition-all"
               >
                 <div className="relative h-[280px] lg:h-[320px] overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={d.img} alt={d.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <Image
+                    src={d.img}
+                    alt={d.name}
+                    fill
+                    sizes="(max-width:1024px) 220px, 25vw"
+                    placeholder="blur"
+                    blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   <div className="absolute top-3 left-3 bg-[#16a34a] text-white text-xs font-bold px-2.5 py-1 rounded-full">
                     {d.count}+ Packages

@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Star, MapPin } from 'lucide-react';
 import { photos } from '@/lib/media';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 const trips = [
   { title: 'Valley of Flowers Trek', loc: 'Joshimath, Uttarakhand', rating: '4.8', rev: '8k+', img: photos.vof, href: '/treks/valley-of-flowers', badge: 'UNESCO Site' },
@@ -20,7 +22,15 @@ export default function BestTripsGrid() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
           {trips.map(t => (
             <Link key={t.title} href={t.href} className="group relative rounded-xl overflow-hidden h-52 lg:h-64">
-              <img src={t.img} alt={t.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <Image
+                src={t.img}
+                alt={t.title}
+                fill
+                sizes="(max-width:1024px) 100vw, 50vw"
+                placeholder="blur"
+                blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
               {t.badge && <span className="absolute top-3 left-3 bg-[#16a34a] text-white text-[10px] lg:text-xs font-bold px-2.5 py-1 rounded-full">{t.badge}</span>}
               <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-6">

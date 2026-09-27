@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Clock, MapPin } from 'lucide-react';
 import {
   HOME_BACKPACKING_REGIONS,
@@ -8,6 +9,7 @@ import {
   HOME_BACKPACKING_TRIPS,
   type HomeBackpackingRegion,
 } from '@/lib/content/home-backpacking';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 export default function Backpacking() {
   const [region, setRegion] = useState<HomeBackpackingRegion>('International');
@@ -110,10 +112,14 @@ export default function Backpacking() {
               href={t.href}
               className="group relative aspect-[3/4] w-[72vw] max-w-[260px] sm:w-[240px] lg:w-[260px] shrink-0 snap-start rounded-xl overflow-hidden"
             >
-              <img
+              <Image
                 src={t.img}
                 alt={t.title}
-                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                fill
+                sizes="260px"
+                placeholder="blur"
+                blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               {t.badge && (

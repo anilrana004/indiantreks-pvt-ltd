@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowRight,
   Calendar,
@@ -77,10 +78,13 @@ export default function TreksDesktopHero({
 
   return (
     <section className="it-treks-hero" aria-label="Upcoming treks">
-      <img
+      <Image
         className="it-treks-hero__photo"
         src={photos.kedarkantha}
         alt=""
+        fill
+        priority
+        sizes="100vw"
         referrerPolicy="no-referrer"
       />
       <div className="it-treks-hero__overlay" aria-hidden />

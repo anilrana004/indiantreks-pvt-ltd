@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowRight,
   Calendar,
@@ -10,6 +11,7 @@ import {
   Star,
   TrendingUp,
 } from 'lucide-react';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import {
   batchStatusMeta,
   type BatchStatus,
@@ -43,11 +45,15 @@ export default function TrekListingCard({ trek }: { trek: ListingTrek }) {
         href={trek.href}
         className="relative block aspect-[16/10] shrink-0 overflow-hidden bg-gray-100 sm:aspect-auto sm:w-[200px] sm:self-stretch md:w-[220px] lg:w-[240px]"
       >
-        <img
+        <Image
           src={trek.cover}
           alt={trek.title}
+          fill
+          sizes="(max-width:640px) 100vw, 240px"
+          placeholder="blur"
+          blurDataURL={STOREFRONT_BLUR_DATA_URL}
           referrerPolicy="no-referrer"
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+          className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-black/5" />
         {trek.badge && (

@@ -2,7 +2,9 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, Clock } from 'lucide-react';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import './landing-trip-row.css';
 
 export type LandingTripCardProps = {
@@ -63,11 +65,15 @@ export default function LandingTripCard({
   return (
     <article className="group flex h-full w-full flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm transition-all duration-300 hover:border-[#16a34a]/25 hover:shadow-md hover:shadow-[#16a34a]/8">
       <CardLink href={href} external={external} className="relative block aspect-[16/11] overflow-hidden bg-gray-100">
-        <img
+        <Image
           src={cover}
           alt=""
+          fill
+          sizes="(max-width:768px) 100vw, 33vw"
+          placeholder="blur"
+          blurDataURL={STOREFRONT_BLUR_DATA_URL}
           referrerPolicy="no-referrer"
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
         {badge ? (

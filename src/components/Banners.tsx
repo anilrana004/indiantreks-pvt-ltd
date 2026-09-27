@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, Tag } from 'lucide-react';
 import { photos } from '@/lib/media';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 export interface BannerItem {
   src: string;
@@ -49,28 +51,29 @@ function SlideImage({
   const desk = desktopSrc || src;
   /** fillFrame assets are strip-sized (pad/export) — cover fills the box with no blur bars. */
   const fit = fillFrame ? 'object-cover object-center' : 'object-contain object-center';
-  const imgClass = `absolute inset-0 m-auto h-full w-full max-h-full max-w-full ${fit}`;
 
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={src}
         alt={alt}
-        loading="lazy"
-        decoding="async"
+        fill
+        sizes="100vw"
+        placeholder="blur"
+        blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className={`${imgClass} lg:hidden`}
+        className={`${fit} lg:hidden`}
       />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={desk}
         alt=""
         aria-hidden
-        loading="lazy"
-        decoding="async"
+        fill
+        sizes="100vw"
+        placeholder="blur"
+        blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className={`${imgClass} hidden lg:block`}
+        className={`${fit} hidden lg:block`}
       />
     </>
   );

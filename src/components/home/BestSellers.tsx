@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Star, Clock, MapPin, Zap } from 'lucide-react';
 import { getBestSellerBuckets } from '@/lib/catalog';
 import {
@@ -9,6 +10,7 @@ import {
   HOME_BEST_SELLERS_TABS,
   type HomeBestSellersTab,
 } from '@/lib/content/home-best-sellers';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 export default function BestSellers() {
   const data = useMemo(() => getBestSellerBuckets(), []);
@@ -52,7 +54,15 @@ export default function BestSellers() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
           {items.slice(0, 4).map((t) => (
             <Link key={t.id} href={t.href} className="group rounded-xl overflow-hidden transition-all relative aspect-[4/5]">
-              <img src={t.img} alt={t.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <Image
+                src={t.img}
+                alt={t.title}
+                fill
+                sizes="(max-width:1024px) 50vw, 25vw"
+                placeholder="blur"
+                blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               {t.badge && (
                 <span className="absolute top-2 left-2 bg-[#16a34a] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">{t.badge}</span>

@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { MapPin } from 'lucide-react';
 import { trekDetailPath, type Trek } from '@/lib/data';
 import { trekCover } from '@/lib/catalog';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 
 export default function TrekCard({ trek }: { trek: Trek }) {
   const minPrice = Math.min(...trek.pricing.map((p) => p.price));
@@ -12,12 +14,15 @@ export default function TrekCard({ trek }: { trek: Trek }) {
       href={trekDetailPath(trek)}
       className="group block rounded-2xl overflow-hidden transition-all duration-300 relative aspect-[3/4]"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={cover}
         alt={trek.title}
+        fill
+        sizes="(max-width:1024px) 50vw, 25vw"
+        placeholder="blur"
+        blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        className="object-cover group-hover:scale-105 transition-transform duration-500"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 

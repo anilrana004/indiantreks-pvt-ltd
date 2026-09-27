@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { treks, trekDetailPath, type Trek } from '@/lib/data';
 import { getDepartureBatches, type TrekBatch } from '@/lib/batches';
@@ -9,6 +10,7 @@ import { blogDate, blogPath, blogThumb, getRelatedPosts, type RelatedPost } from
 import { safeImage, trekPhoto } from '@/lib/safe-image';
 import { photos } from '@/lib/media';
 import { whatsappUrl } from '@/lib/contact';
+import { STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import Banners, { type BannerItem } from '@/components/Banners';
 import { HighlightIcon } from '@/components/treks/HighlightIcons';
 import {
@@ -476,13 +478,14 @@ function BlogSidebar({ posts }: { posts: RelatedPost[] }) {
             href={blogPath(post.slug)}
             key={post.slug}
           >
-            <span className="bl-thumb">
-              <img
+            <span className="bl-thumb relative">
+              <Image
                 src={blogThumb(post.image)}
                 alt=""
-                loading="lazy"
-                decoding="async"
+                fill
+                sizes="58px"
                 referrerPolicy="no-referrer"
+                className="object-cover"
               />
             </span>
             <span className="bl-body">
@@ -1175,7 +1178,17 @@ export default function TrekDetailContent({
               }
             }}
           >
-            <img src={heroImage} alt={trek.title} referrerPolicy="no-referrer" />
+            <Image
+              src={heroImage}
+              alt={trek.title}
+              fill
+              priority
+              sizes="(max-width:900px) 100vw, 65vw"
+              placeholder="blur"
+              blurDataURL={STOREFRONT_BLUR_DATA_URL}
+              referrerPolicy="no-referrer"
+              className="object-cover"
+            />
             <div className="kg-overlay-top">
               <div className="kg-tags">
                 <span className="kg-tag">
@@ -1204,10 +1217,28 @@ export default function TrekDetailContent({
 
           <div className="kg-side">
             <button type="button" className="kg-side-card" onClick={() => setLightbox(1)}>
-              <img src={sideImageA} alt={`${trek.title} photo 2`} referrerPolicy="no-referrer" />
+              <Image
+                src={sideImageA}
+                alt={`${trek.title} photo 2`}
+                fill
+                sizes="(max-width:900px) 50vw, 35vw"
+                placeholder="blur"
+                blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                referrerPolicy="no-referrer"
+                className="object-cover"
+              />
             </button>
             <button type="button" className="kg-side-card" onClick={() => setLightbox(2)}>
-              <img src={sideImageB} alt={`${trek.title} photo 3`} referrerPolicy="no-referrer" />
+              <Image
+                src={sideImageB}
+                alt={`${trek.title} photo 3`}
+                fill
+                sizes="(max-width:900px) 50vw, 35vw"
+                placeholder="blur"
+                blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                referrerPolicy="no-referrer"
+                className="object-cover"
+              />
               {images.length > 3 && <span className="kg-more-overlay">+{images.length - 3} More</span>}
             </button>
           </div>
@@ -1220,7 +1251,17 @@ export default function TrekDetailContent({
               {images.map((src, i) => (
                 <div className="kg-mobile-slide" key={`kg-slide-${i}`}>
                   <button type="button" className="kg-main" onClick={() => setLightbox(i)}>
-                    <img src={src} alt={`${trek.title} photo ${i + 1}`} referrerPolicy="no-referrer" />
+                    <Image
+                      src={src}
+                      alt={`${trek.title} photo ${i + 1}`}
+                      fill
+                      priority={i === 0}
+                      sizes="100vw"
+                      placeholder="blur"
+                      blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                      referrerPolicy="no-referrer"
+                      className="object-cover"
+                    />
                   </button>
                 </div>
               ))}
@@ -1235,7 +1276,14 @@ export default function TrekDetailContent({
                   aria-label={`Go to photo ${i + 1}`}
                   onClick={() => goToSlide(i)}
                 >
-                  <img src={src} alt="" referrerPolicy="no-referrer" />
+                  <Image
+                    src={src}
+                    alt=""
+                    fill
+                    sizes="72px"
+                    referrerPolicy="no-referrer"
+                    className="object-cover"
+                  />
                   {i === 3 && images.length > 4 && (
                     <span className="kg-mobile-thumb-more">+{images.length - 4}</span>
                   )}
@@ -2322,10 +2370,15 @@ export default function TrekDetailContent({
           <div className="kg-related-track">
             {related.map((item) => (
               <Link className="kg-r-tour" href={trekDetailPath(item)} key={item.id}>
-                <img
+                <Image
                   src={safeImage(item.images[0], trekPhoto(item.id))}
                   alt={item.title}
+                  fill
+                  sizes="220px"
+                  placeholder="blur"
+                  blurDataURL={STOREFRONT_BLUR_DATA_URL}
                   referrerPolicy="no-referrer"
+                  className="object-cover"
                 />
                 <div className="kg-r-badges">
                   <span className="kg-r-badge kg-r-badge-days">{item.days} Days</span>

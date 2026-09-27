@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { MapPin, Clock, TrendingUp, ChevronRight } from 'lucide-react';
 import { photos } from '@/lib/media';
 
@@ -24,8 +25,14 @@ export default function FeaturedTrek() {
       <div className="container mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left - Image */}
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-            <img src={featured.img} alt={featured.title} className="w-full h-64 lg:h-[420px] object-cover" />
+          <div className="relative h-64 lg:h-[420px] rounded-2xl overflow-hidden shadow-2xl">
+            <Image
+              src={featured.img}
+              alt={featured.title}
+              fill
+              sizes="(max-width:1024px) 100vw, 50vw"
+              className="object-cover"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute top-4 left-4">
               <span className="bg-[#16a34a] text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase">{featured.badge}</span>
