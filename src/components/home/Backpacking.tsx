@@ -82,7 +82,7 @@ export default function Backpacking() {
           <Link href={HOME_BACKPACKING_SECTION.viewAllHref} className="text-[#16a34a] text-sm font-semibold hover:text-[#15803d] whitespace-nowrap">{HOME_BACKPACKING_SECTION.viewAllLabel} &rarr;</Link>
         </div>
 
-        <div className="flex justify-center gap-2 overflow-x-auto scrollbar-none pb-2 px-4 lg:px-0 mb-6" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex justify-start gap-2 overflow-x-auto scrollbar-none pb-2 px-4 lg:justify-center lg:px-0 mb-6" style={{ scrollbarWidth: 'none' }}>
           {HOME_BACKPACKING_REGIONS.map(r => (
             <button
               key={r}

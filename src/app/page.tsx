@@ -1,5 +1,5 @@
 import Hero from "@/components/Hero";
-import QuickFilters from "@/components/home/QuickFilters";
+import ExploreCategories from "@/components/home/ExploreCategories";
 import UpcomingTrips from "@/components/home/UpcomingTrips";
 import BestSellers from "@/components/home/BestSellers";
 import CustomizedTours from "@/components/home/CustomizedTours";
@@ -27,10 +27,10 @@ export default async function Home() {
   return (
     <>
       <Hero />
+      <ExploreCategories />
       <div className="hidden lg:block">
         <Banners items={banners.explore} />
       </div>
-      <QuickFilters />
       <section id="upcoming-trips"><UpcomingTrips /></section>
       <Banners items={banners.book} />
       <BestSellers />

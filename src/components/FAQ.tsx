@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   HOME_FAQ_CATEGORIES,
@@ -8,6 +8,8 @@ import {
   type HomeFaqCategory,
 } from '@/lib/content/home-faq';
 import './home/home-faq.css';
+
+const FAQ_PREVIEW_COUNT = 4;
 
 function FaqBadge() {
   return (
@@ -24,6 +26,7 @@ export default function FAQ() {
   const [category, setCategory] = useState<HomeFaqCategory>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const catsRef = useRef<HTMLDivElement>(null);
 
   const items = useMemo(() => {
@@ -34,6 +37,14 @@ export default function FAQ() {
       (f) => f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q),
     );
   }, [category, query]);
+
+  useEffect(() => {
+    setShowAll(false);
+    setOpenId(null);
+  }, [category, query]);
+
+  const needsToggle = items.length > FAQ_PREVIEW_COUNT;
+  const visibleItems = showAll || !needsToggle ? items : items.slice(0, FAQ_PREVIEW_COUNT);
 
   const scrollCats = () => {
     const el = catsRef.current;
@@ -80,7 +91,6 @@ export default function FAQ() {
                 className={`it-home-faq__cat${active ? ' is-active' : ''}`}
                 onClick={() => {
                   setCategory(cat.id);
-                  setOpenId(null);
                 }}
               >
                 {cat.label}
@@ -95,7 +105,6 @@ export default function FAQ() {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              setOpenId(null);
             }}
             placeholder="Ask your queries...."
             aria-label="Search frequently asked questions"
@@ -110,7 +119,7 @@ export default function FAQ() {
               <Link href="/faqs">Browse all FAQs</Link> or try another keyword.
             </div>
           ) : (
-            items.map((item) => {
+            visibleItems.map((item) => {
               const open = openId === item.id;
               return (
                 <div
@@ -139,6 +148,23 @@ export default function FAQ() {
             })
           )}
         </div>
+
+        {needsToggle && (
+          <div className="it-home-faq__toggle-wrap">
+            <button
+              type="button"
+              className="it-home-faq__read-more"
+              aria-expanded={showAll}
+              onClick={() => setShowAll((v) => !v)}
+            >
+              {showAll ? 'Show less' : 'Read more'}
+              <i
+                className={`fa-solid ${showAll ? 'fa-chevron-up' : 'fa-chevron-down'}`}
+                aria-hidden
+              />
+            </button>
+          </div>
+        )}
 
         <div className="it-home-faq__more">
           <Link href="/faqs">

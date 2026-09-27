@@ -6,11 +6,11 @@
   --hiw-green-bright: #16a34a;
   --hiw-green-soft: #ecfdf5;
   --hiw-ink: #0f172a;
-  --hiw-muted: #64748b;
+  --hiw-muted: #5a6b62;
   --hiw-wrap: 1180px;
   position: relative;
   padding: 56px 0 64px;
-  background: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbf9 100%);
   overflow: hidden;
 }
 

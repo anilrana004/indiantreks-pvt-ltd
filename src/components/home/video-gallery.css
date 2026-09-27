@@ -12,12 +12,12 @@
   --it-vid-green-bright: #16a34a;
   --it-vid-green-soft: #ecfdf5;
   --it-vid-ink: #0f172a;
-  --it-vid-muted: #64748b;
+  --it-vid-muted: #5a6b62;
 
   position: relative;
   width: 100%;
   padding: 3.5rem 0 4rem;
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 48%, #f8fafc 100%);
+  background: linear-gradient(180deg, #f8fbf9 0%, #ffffff 48%, #f1f6f2 100%);
   overflow: hidden;
   font-family: var(--font-poppins, 'Poppins'), ui-sans-serif, system-ui, sans-serif;
   color: var(--it-vid-ink);

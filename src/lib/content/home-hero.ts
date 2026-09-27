@@ -1,5 +1,4 @@
 import type { BannerItem } from '@/components/Banners';
-import type { CategoryItem } from '@/components/home/CategoryScroller';
 import { KEDARKANTHA_FEATURE, KEDARKANTHA_HOME_HERO } from '@/lib/content/treks/kedarkantha/gallery-content';
 import {
   HOME_HIMALAYAN_DEFAULT_SEASON,
@@ -60,19 +59,6 @@ export const HERO_EXPLORE_PROMOS: BannerItem[] = [
   { src: photos.yatra, href: '/yatra', title: 'Sacred Yatras – Spiritual Himalaya', subtitle: 'Kedarnath · Do Dham · Char Dham · Panch Kedar – divine journeys', badge: 'Yatra', discount: 'Plan Your Yatra' },
   { src: photos.uttarakhand, href: '/treks?region=uttarakhand', title: 'Uttarakhand – Land of Gods & Treks', subtitle: '10 iconic Himalayan treks across Chopta, Kedarkantha & beyond', badge: 'Uttarakhand', discount: 'View All Treks' },
   { src: photos.himachal, href: '/treks?region=himachal', title: 'Himachal – Adventure Capital', subtitle: 'Hampta, Triund, Bhrigu Lake, Kheerganga & more', badge: 'Himachal', discount: 'Explore Himachal' },
-];
-
-export const HERO_CATEGORY_ITEMS: CategoryItem[] = [
-  { n: 'Uttarakhand Treks', h: '/treks?region=uttarakhand', img: photos.uttarakhand },
-  { n: 'Himachal Treks', h: '/treks?region=himachal', img: photos.himachal },
-  { n: 'Char Dham Yatra', h: '/yatra/char-dham', img: photos.yatra },
-  { n: 'Kedarnath Yatra', h: '/yatra/kedarnath-yatra', img: photos.kedarnath },
-  { n: 'Everest Base Camp', h: '/treks/everest-base-camp', img: photos.ebc },
-  { n: 'Nepal', h: '/treks?region=nepal', img: photos.nepal },
-  { n: 'Chopta Tungnath', h: '/treks/chopta-tungnath', img: photos.chopta },
-  { n: 'Hampta Pass', h: '/treks/hampta-pass', img: photos.hampta },
-  { n: 'Triund Trek', h: '/treks/mcleodganj-trek', img: photos.triund },
-  { n: 'Valley of Flowers', h: '/treks/valley-of-flowers', img: photos.vof },
 ];
 
 /**

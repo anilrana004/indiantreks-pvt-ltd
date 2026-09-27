@@ -37,7 +37,7 @@ export default function BestSellers() {
           </div>
           <Link href={HOME_BEST_SELLERS_SECTION.viewAllHref} className="text-[#16a34a] text-sm font-semibold hover:text-[#15803d] whitespace-nowrap">{HOME_BEST_SELLERS_SECTION.viewAllLabel} &rarr;</Link>
         </div>
-        <div className="flex justify-center gap-2 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 mb-6">
+        <div className="flex justify-start gap-2 overflow-x-auto scrollbar-none pb-2 mb-6 lg:justify-center">
           {HOME_BEST_SELLERS_TABS.map((t) => (
             <button
               key={t}

@@ -13,7 +13,6 @@ import BrandLogo from '@/components/BrandLogo';
 import { CONTACT, telUrl } from '@/lib/contact';
 import { DESK_HEADER_H } from '@/lib/layout';
 import {
-  HERO_CATEGORY_ITEMS,
   HERO_EXPLORE_PROMOS,
   HERO_MOB_BANNERS,
   HERO_SEARCH_DESTINATIONS,
@@ -23,13 +22,14 @@ import { HERO_COLLAB_ITEMS } from '@/lib/content/home-hero-collab';
 import { HERO_COLLAB_LUCIDE_ICONS } from '@/lib/icons/lucide-content-icons';
 import Banners from '@/components/Banners';
 import CategoryScroller from '@/components/home/CategoryScroller';
+import { HOME_EXPLORE_CATEGORIES } from '@/lib/content/home-explore-categories';
 import '@/components/home/hero-mobile-banner.css';
 
 const mobBanners = HERO_MOB_BANNERS;
 const explorePromos = HERO_EXPLORE_PROMOS;
-const catItems = HERO_CATEGORY_ITEMS;
 const collabItems = HERO_COLLAB_ITEMS;
 const destinations = HERO_SEARCH_DESTINATIONS;
+const catItems = HOME_EXPLORE_CATEGORIES;
 
 type SearchCategory = 'all' | 'trek' | 'yatra' | 'international';
 
@@ -333,7 +333,7 @@ export default function Hero() {
           </div>
         </div>
 
-        <CategoryScroller items={catItems} />
+        <CategoryScroller items={catItems} variant="mobile" />
 
         <div className="mt-4">
           <Banners items={explorePromos} embedded />

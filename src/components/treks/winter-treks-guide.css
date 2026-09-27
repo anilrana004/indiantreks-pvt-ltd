@@ -35,7 +35,7 @@
 }
 
 .it-wg-simple__toggle:hover {
-  background: #f9fafb;
+  background: #f8fbf9;
 }
 
 .it-wg-simple__chevron {
@@ -92,7 +92,7 @@
 .it-wg-simple__faq-item {
   border-radius: 0.65rem;
   border: 1px solid #e5e7eb;
-  background: #fafafa;
+  background: #f8fbf9;
   padding: 0.65rem 0.8rem;
 }
 

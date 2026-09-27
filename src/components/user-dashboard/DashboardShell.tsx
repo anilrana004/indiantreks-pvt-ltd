@@ -60,7 +60,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   if (!ready || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f7f4] pt-20">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--ih-bg)] pt-20">
         <p className="text-sm text-slate-500">Loading your dashboard…</p>
       </div>
     );

@@ -6,14 +6,25 @@
   --color-primary-active: #166534;
   --color-secondary: #1666d9;
   --color-secondary-hover: #0f4fa8;
-  --color-bg: #f3f4f6;
+  --color-bg: #f8fbf9;
   --color-bg-secondary: #1666d9;
-  --color-text: #000000;
-  --color-text-secondary: #666666;
-  --color-border: #212529;
+  --color-text: #0f172a;
+  --color-text-secondary: #5a6b62;
+  --color-border: #e4ebe6;
   --color-surface: #ffffff;
+  /*
+   * Light canvas remap — keep brand green; lift cold / muddy neutrals so
+   * gray-50 sections read as fresh mint-white rather than dull zinc.
+   */
+  --color-gray-50: #f8fbf9;
+  --color-gray-100: #f1f6f2;
+  --color-gray-200: #e4ebe6;
+  --color-slate-50: #f8faf9;
+  --color-slate-100: #f1f5f3;
+  --color-zinc-50: #f8faf9;
+  --color-zinc-100: #f2f4f3;
   --font-sans: var(--font-poppins), 'Poppins', ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-poppins), 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-playfair), 'Playfair Display', Georgia, 'Times New Roman', serif;
   --text-display: 86px;
   --text-h1: 78px;
   --text-h2: 40px;
@@ -36,11 +47,16 @@
 }
 
 :root {
-  /* Palette stays Indian Treks. Roles follow IndiaHikes color theory:
-     60% canvas (photo / white / wash), 30% ink & overlays, 10% brand spark. */
+  /*
+   * Indian Treks light color theory (brand green locked):
+   * 60% luminous canvas · 30% ink / soft overlays · 10% #16a34a spark.
+   * Neutrals carry a faint green bias so flat gray never reads dull.
+   */
   --ih-primary: #16a34a;
   --ih-primary-hover: #15803d;
   --ih-primary-active: #166534;
+  --ih-primary-soft: rgba(22, 163, 74, 0.1);
+  --ih-primary-mist: rgba(22, 163, 74, 0.06);
   --ih-spark: #4ade80;          /* highlight on dark photos — same job as IndiaHikes accent */
   /*
    * Mobile hero wash — JW-style continuous fade (saturated top → white bottom).
@@ -65,16 +81,23 @@
   );
   --ih-mobile-header-fade-end: 172px;
   --ih-secondary: #1666d9;
-  --ih-bg: #f3f4f6;
-  --ih-text: #000000;
-  --ih-text-secondary: #666666;
-  --ih-border: #212529;
+  --ih-bg: #f8fbf9;
+  --ih-bg-muted: #f1f6f2;
+  --ih-bg-tint: #ecf8f0;
+  --ih-text: #0f172a;
+  --ih-text-secondary: #5a6b62;
+  --ih-border: #e4ebe6;
+  --ih-border-strong: #d5ded8;
   --ih-accent-green: #16a34a;
   --ih-accent-blue: #007aff;
   --ih-surface: #ffffff;
+  --ih-shadow-soft: 0 4px 22px rgba(12, 40, 24, 0.05);
+  --ih-shadow-lift: 0 12px 36px rgba(12, 40, 24, 0.07);
+  --ih-shadow-ring: 0 0 0 1px rgba(22, 163, 74, 0.06);
 }
 
 html {
+  color-scheme: light;
   scroll-behavior: smooth;
   width: 100%;
   max-width: 100%;
@@ -87,16 +110,27 @@ html {
   overscroll-behavior-x: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  background-color: var(--ih-bg);
 }
 body.it-body,
 .it-body,
 body {
   font-family: var(--font-sans);
   color: var(--ih-text);
-  background: var(--ih-bg);
+  background-color: var(--ih-bg);
+  /* Soft top light + side mint breath — keeps pages bright without washing brand green */
+  background-image:
+    radial-gradient(ellipse 120% 70% at 50% -18%, rgba(22, 163, 74, 0.08), transparent 58%),
+    radial-gradient(ellipse 55% 40% at 100% 20%, rgba(74, 222, 128, 0.05), transparent 55%),
+    radial-gradient(ellipse 45% 35% at 0% 60%, rgba(22, 163, 74, 0.035), transparent 50%),
+    linear-gradient(180deg, #ffffff 0%, var(--ih-bg) 32%, var(--ih-bg) 100%);
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
   font-weight: 400;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   width: 100%;
   max-width: 100%;
   min-height: 100dvh;
@@ -108,6 +142,11 @@ body {
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
   position: relative;
+}
+
+::selection {
+  background: rgba(22, 163, 74, 0.18);
+  color: #0f172a;
 }
 
 /*
@@ -188,6 +227,7 @@ svg {
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 .btn:focus-visible { outline: 2px solid var(--ih-primary); outline-offset: 3px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
@@ -220,13 +260,13 @@ svg {
 
 .btn-ghost {
   background: #fff;
-  color: var(--ih-border);
+  color: var(--ih-text);
   border-radius: var(--radius-pill);
   padding: 8px 24px;
   font-size: 14px;
   font-weight: 700;
 }
-.btn-ghost:hover:not(:disabled) { background: rgba(0, 0, 0, 0.04); }
+.btn-ghost:hover:not(:disabled) { background: rgba(15, 23, 42, 0.04); }
 
 .btn-ghost-dark {
   background: transparent;
@@ -236,7 +276,7 @@ svg {
   font-size: 14px;
   font-weight: 600;
 }
-.btn-ghost-dark:hover:not(:disabled) { background: rgba(0, 0, 0, 0.05); }
+.btn-ghost-dark:hover:not(:disabled) { background: rgba(15, 23, 42, 0.05); }
 
 /* ====== Input Base ====== */
 .input {
@@ -257,5 +297,35 @@ svg {
 .input--error { border-color: #e74c3c; }
 
 /* ====== Card Base ====== */
-.card { background: var(--ih-surface); border-radius: var(--radius-card); transition: box-shadow 0.15s; }
-.card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.card {
+  background: var(--ih-surface);
+  border-radius: var(--radius-card);
+  border: 1px solid rgba(22, 163, 74, 0.05);
+  box-shadow: var(--ih-shadow-soft);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.card:hover {
+  box-shadow: var(--ih-shadow-lift), var(--ih-shadow-ring);
+  border-color: rgba(22, 163, 74, 0.12);
+}
+
+/* Refined section titles — tracking only; never override intentional colors */
+section .container h2 {
+  letter-spacing: -0.015em;
+}
+
+/*
+  Shared light surfaces — opt-in classes for pages that still hardcode dull zinc.
+  Prefer these over raw #f5f5f5 / #f4f4f4.
+*/
+.it-canvas {
+  background-color: var(--ih-bg);
+}
+.it-canvas-muted {
+  background-color: var(--ih-bg-muted);
+}
+.it-surface {
+  background-color: var(--ih-surface);
+  box-shadow: var(--ih-shadow-soft);
+}
+

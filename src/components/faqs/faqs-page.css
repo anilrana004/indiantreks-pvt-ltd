@@ -3,10 +3,10 @@
 .it-faq {
   --faq-green: #16a34a;
   --faq-green-dark: #15803d;
-  --faq-ink: #1a1a1a;
-  --faq-muted: #5c5c5c;
-  --faq-line: #ececec;
-  --faq-bg: #f7f7f7;
+  --faq-ink: #0f172a;
+  --faq-muted: #5a6b62;
+  --faq-line: #e4ebe6;
+  --faq-bg: #f8fbf9;
   --faq-card: #ffffff;
   --faq-tile-w: 5.5rem;
   --faq-retro-x: 2px;
@@ -460,7 +460,7 @@
 }
 
 .it-faq__q:hover {
-  background: #fafafa;
+  background: #f8fbf9;
 }
 
 .it-faq__q-text {
@@ -476,7 +476,7 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: #f3f4f6;
+  background: #f1f6f2;
   color: var(--faq-muted);
   font-size: 0.7rem;
   transition: transform 0.2s ease, background 0.15s ease, color 0.15s ease;

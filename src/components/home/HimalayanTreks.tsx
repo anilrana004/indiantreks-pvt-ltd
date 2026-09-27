@@ -113,7 +113,7 @@ export default function HimalayanTreks() {
           </Link>
         </div>
 
-        <div className="flex justify-center gap-2 overflow-x-auto scrollbar-none pb-2 px-4 lg:px-0 mb-6" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex justify-start gap-2 overflow-x-auto scrollbar-none pb-2 px-4 lg:justify-center lg:px-0 mb-6" style={{ scrollbarWidth: 'none' }}>
           {seasons.map((s) => (
             <button
               key={s}

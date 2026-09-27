@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           referrerPolicy="no-referrer"
         />
       </head>
-      <body className="min-h-dvh overscroll-x-none">
+      <body className={`${poppins.className} min-h-dvh overscroll-x-none antialiased`}>
         <AppShell>{children}</AppShell>
       </body>
     </html>

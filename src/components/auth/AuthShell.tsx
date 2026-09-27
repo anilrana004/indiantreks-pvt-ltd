@@ -20,7 +20,7 @@ export default function AuthShell({
   tagline?: string;
 }) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f4f4f4]">
+    <div className="relative min-h-screen overflow-hidden bg-[var(--ih-bg)]">
       <div className="relative mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-12 sm:py-16">
         <div className="mb-6 text-center">
           <Link href="/" className="inline-flex flex-col items-center gap-2">

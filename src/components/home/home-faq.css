@@ -3,10 +3,10 @@
 .it-home-faq {
   --hf-accent: #16a34a;
   --hf-accent-soft: rgba(22, 163, 74, 0.12);
-  --hf-ink: #1a1a1a;
-  --hf-muted: #8a8a8a;
-  --hf-line: #e8e8e8;
-  --hf-bg: #f5f5f5;
+  --hf-ink: #0f172a;
+  --hf-muted: #5a6b62;
+  --hf-line: #e4ebe6;
+  --hf-bg: #f8fbf9;
   --hf-card: #ffffff;
 
   padding: 2.5rem 0 3.5rem;
@@ -301,6 +301,38 @@
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.it-home-faq__toggle-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.it-home-faq__read-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.35rem;
+  border: 1px solid var(--hf-line);
+  border-radius: 9999px;
+  background: var(--hf-card);
+  color: var(--hf-accent);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.it-home-faq__read-more:hover {
+  background: var(--hf-accent-soft);
+  border-color: rgba(22, 163, 74, 0.35);
+}
+
+.it-home-faq__read-more i {
+  font-size: 0.7rem;
 }
 
 .it-home-faq__more {

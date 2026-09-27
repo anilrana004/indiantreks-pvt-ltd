@@ -589,7 +589,7 @@ export default function AllTreksExplorer({
   );
 
   return (
-    <div className="min-h-screen bg-[#f6f8f6]">
+    <div className="min-h-screen bg-[var(--ih-bg)]">
       {/* —— Mobile phone UI (Indiahikes-style) —— */}
       <div className="lg:hidden">
         {/* Compact announcement strip */}
