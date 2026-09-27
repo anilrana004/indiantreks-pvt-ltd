@@ -17,22 +17,27 @@ export type CategoryScrollerVariant = 'mobile' | 'desktop';
 const SPEED = 32;
 const RESUME_MS = 2800;
 
+/** Brand-green ring — desktop featured only. */
 const GREEN_RING =
   'linear-gradient(145deg, #16a34a 0%, #4ade80 55%, #86efac 100%)';
 
-/** Desktop story rings — warm analogous spectrum (JustWravel / IG color theory). */
-const DESKTOP_RINGS = [
-  'linear-gradient(135deg, #f09433 0%, #e6683c 35%, #dc2743 65%, #bc1888 100%)',
-  'linear-gradient(135deg, #fdc830 0%, #f37335 45%, #e52e71 100%)',
-  'linear-gradient(135deg, #f77737 0%, #e1306c 50%, #833ab4 100%)',
-  'linear-gradient(135deg, #ff6a00 0%, #ee0979 55%, #9b2d8a 100%)',
-  'linear-gradient(135deg, #f9d423 0%, #ff4e50 50%, #c44569 100%)',
-  'linear-gradient(135deg, #ff9a44 0%, #fc6076 50%, #8e2de2 100%)',
+/**
+ * Instagram Stories ring — yellow → orange → pink → purple.
+ * Slightly thicker feel on phone via padding; colors match IG highlight rings.
+ */
+const IG_STORY_RING =
+  'conic-gradient(from 210deg, #feda75 0deg, #fa7e1e 70deg, #d62976 150deg, #962fbf 230deg, #4f5bd5 300deg, #feda75 360deg)';
+
+const IG_STORY_RINGS = [
+  IG_STORY_RING,
+  'conic-gradient(from 120deg, #feda75 0deg, #fa7e1e 80deg, #d62976 160deg, #962fbf 240deg, #4f5bd5 310deg, #feda75 360deg)',
+  'conic-gradient(from 40deg, #f09433 0deg, #e6683c 70deg, #dc2743 140deg, #cc2366 210deg, #bc1888 280deg, #f09433 360deg)',
+  'conic-gradient(from 300deg, #fdc830 0deg, #f37335 90deg, #e52e71 180deg, #833ab4 270deg, #fdc830 360deg)',
 ] as const;
 
-function desktopRing(index: number, featured?: boolean): string {
-  if (featured) return GREEN_RING;
-  return DESKTOP_RINGS[index % DESKTOP_RINGS.length];
+function storyRing(index: number, featured?: boolean, preferGreenFeatured?: boolean): string {
+  if (featured && preferGreenFeatured) return GREEN_RING;
+  return IG_STORY_RINGS[index % IG_STORY_RINGS.length];
 }
 
 function CatAvatar({
@@ -57,17 +62,19 @@ function CatAvatar({
     .toUpperCase();
 
   const isMobile = variant === 'mobile';
-  const ring = isMobile ? GREEN_RING : desktopRing(index, featured);
+  /* Phone: always IG story rings. Desktop: IG rings, green only for featured. */
+  const ring = storyRing(index, featured, !isMobile);
   const sizeCls = isMobile
     ? 'h-[68px] w-[68px]'
     : 'h-14 w-14 sm:h-16 sm:w-16';
-  const glow = isMobile || featured
+  const glow = featured && !isMobile
     ? '0 2px 10px rgba(22,163,74,0.28)'
-    : '0 2px 12px rgba(225,48,108,0.22)';
+    : '0 2px 12px rgba(214,41,118,0.22)';
+  const ringPad = isMobile ? 'p-[3px]' : 'p-[2.5px]';
 
   return (
     <span
-      className="inline-flex aspect-square shrink-0 rounded-full p-[2.5px] transition-transform duration-300 group-hover:scale-[1.05]"
+      className={`inline-flex aspect-square shrink-0 rounded-full ${ringPad} transition-transform duration-300 group-hover:scale-[1.05] group-active:scale-[0.98]`}
       style={{
         backgroundImage: ring,
         boxShadow: glow,
@@ -79,7 +86,7 @@ function CatAvatar({
         {broken ? (
           <span
             className={`flex h-full w-full items-center justify-center rounded-full text-[12px] font-bold tracking-wide text-white ${
-              featured || isMobile
+              featured && !isMobile
                 ? 'bg-gradient-to-br from-[#166534] to-[#16a34a]'
                 : 'bg-gradient-to-br from-[#e1306c] to-[#833ab4]'
             }`}
@@ -112,8 +119,8 @@ type Props = {
 };
 
 /**
- * mobile — original phone strip (green rings + auto-crawl), placed in Hero.
- * desktop — JustWravel story rings for the floating pill bar.
+ * mobile — phone hero strip with IG story rings + auto-crawl.
+ * desktop — JustWravel pill bar with IG story rings (green for featured).
  */
 export default function CategoryScroller({ items, variant = 'desktop' }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -245,7 +252,13 @@ export default function CategoryScroller({ items, variant = 'desktop' }: Props) 
               }}
               className="group flex w-[76px] shrink-0 flex-col items-center"
             >
-              <CatAvatar src={item.img} label={item.n} featured={item.featured} variant="mobile" />
+              <CatAvatar
+                src={item.img}
+                label={item.n}
+                featured={item.featured}
+                variant="mobile"
+                index={i % items.length}
+              />
               <span className="mt-1.5 h-8 w-full text-center text-[10px] font-semibold leading-tight text-gray-900 line-clamp-2">
                 {item.n}
               </span>
