@@ -1,3 +1,7 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
 # pnpm project settings (used by Vercel / CI)
 confirmModulesPurge: false
 allowBuilds:

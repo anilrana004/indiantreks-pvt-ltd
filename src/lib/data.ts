@@ -84,8 +84,17 @@ export function getTrekById(id: string | string[] | undefined): Trek | undefined
   return treks.find((t) => t.id === slug);
 }
 
-export function trekDetailPath(trek: Trek) {
-  return trek.type === "yatra" ? `/yatra/${trek.id}` : `/treks/${trek.id}`;
+/** Canonical detail URL for a package. `kind` covers trip listing routes that reuse trek data. */
+export function trekDetailPath(trek: Trek, kind?: "trek" | "yatra" | "trip") {
+  if (kind === "trip") return `/trips/${trek.id}`;
+  if (kind === "yatra" || (!kind && trek.type === "yatra")) return `/yatra/${trek.id}`;
+  return `/treks/${trek.id}`;
+}
+
+export function packageListPath(trek: Trek, kind?: "trek" | "yatra" | "trip") {
+  if (kind === "trip") return "/trips";
+  if (kind === "yatra" || (!kind && trek.type === "yatra")) return "/yatra";
+  return "/treks";
 }
 
 /** Common wrong / legacy slugs → canonical trek ids (avoids 404s from reviews & old links). */

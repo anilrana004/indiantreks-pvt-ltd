@@ -2,7 +2,7 @@ import { SITE_LOGO_URL } from '@/lib/brand-assets';
 
 /** Canonical public site origin — override in production via env. */
 export const SITE_URL =
-  (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.indiantreks.in').replace(/\/$/, '');
+  (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://indiantreks.in').replace(/\/$/, '');
 
 export const SITE_NAME = 'Indian Treks';
 

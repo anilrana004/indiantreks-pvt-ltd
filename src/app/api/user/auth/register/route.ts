@@ -50,7 +50,14 @@ export async function POST(req: Request) {
     });
 
     return response;
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message.includes('SESSION_SECRET') || message.includes('production')) {
+      return NextResponse.json(
+        { error: 'Authentication is not configured for production' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 }

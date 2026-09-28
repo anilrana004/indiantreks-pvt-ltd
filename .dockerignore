@@ -1,0 +1,18 @@
+# Keep Railway/Docker context small — do not ship local build artifacts
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+.vercel
+.railway
+.env*
+!.env.example
+data
+docs
+cookies.txt
+*.md
+!apps/api/README.md
+tmp-*.json
+coverage
+.turbo

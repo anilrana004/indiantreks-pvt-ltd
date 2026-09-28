@@ -11,10 +11,73 @@ export const bookings = pgTable('bookings', {
   persons: integer('persons').notNull().default(1),
   date: text('date').notNull().default(''),
   payment: text('payment').notNull().default('deposit'),
+  /** Display amount in whole INR (payable now). */
   amount: integer('amount').notNull().default(0),
-  status: text('status').notNull().default('pending'),
+  status: text('status').notNull().default('pending_payment'),
   notes: text('notes').notNull().default(''),
+  userId: uuid('user_id'),
+  referenceCode: text('reference_code'),
+  city: text('city').notNull().default(''),
+  participantsJson: text('participants_json').notNull().default('[]'),
+  pricingSnapshot: text('pricing_snapshot').notNull().default('{}'),
+  payablePaise: integer('payable_paise').notNull().default(0),
+  totalPaise: integer('total_paise').notNull().default(0),
+  currency: text('currency').notNull().default('INR'),
+  checkoutTokenHash: text('checkout_token_hash'),
+  paymentStatus: text('payment_status').notNull().default('unpaid'),
+  holdExpiresAt: timestamp('hold_expires_at', { withTimezone: true }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  emailStatus: text('email_status').notNull().default('not_configured'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const paymentTransactions = pgTable('payment_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingId: uuid('booking_id')
+    .notNull()
+    .references(() => bookings.id, { onDelete: 'cascade' }),
+  razorpayOrderId: text('razorpay_order_id').notNull().unique(),
+  razorpayPaymentId: text('razorpay_payment_id').unique(),
+  amountPaise: integer('amount_paise').notNull(),
+  currency: text('currency').notNull().default('INR'),
+  status: text('status').notNull().default('created'),
+  method: text('method'),
+  signatureVerified: boolean('signature_verified').notNull().default(false),
+  idempotencyKey: text('idempotency_key').unique(),
+  failureReason: text('failure_reason'),
+  rawStatus: text('raw_status'),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  failedAt: timestamp('failed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const paymentWebhookEvents = pgTable('payment_webhook_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventId: text('event_id').notNull().unique(),
+  eventType: text('event_type').notNull(),
+  payloadHash: text('payload_hash').notNull(),
+  processed: boolean('processed').notNull().default(false),
+  processingError: text('processing_error'),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const paymentRefunds = pgTable('payment_refunds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  paymentTransactionId: uuid('payment_transaction_id')
+    .notNull()
+    .references(() => paymentTransactions.id, { onDelete: 'cascade' }),
+  bookingId: uuid('booking_id')
+    .notNull()
+    .references(() => bookings.id, { onDelete: 'cascade' }),
+  razorpayRefundId: text('razorpay_refund_id').unique(),
+  amountPaise: integer('amount_paise').notNull(),
+  status: text('status').notNull().default('requested'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const contacts = pgTable('contacts', {

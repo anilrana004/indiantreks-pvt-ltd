@@ -84,6 +84,7 @@ export default function AdminBookings() {
               <AdminTh>Persons</AdminTh>
               <AdminTh>Date</AdminTh>
               <AdminTh>Amount</AdminTh>
+              <AdminTh>Pay</AdminTh>
               <AdminTh>Status</AdminTh>
               <AdminTh>Actions</AdminTh>
             </AdminTableHead>
@@ -93,6 +94,9 @@ export default function AdminBookings() {
                   <AdminTd>
                     <p className="font-medium text-slate-800">{book.name}</p>
                     <p className="text-xs text-slate-400">{book.phone}</p>
+                    {book.referenceCode ? (
+                      <p className="text-[10px] font-mono text-slate-400 mt-0.5">{book.referenceCode}</p>
+                    ) : null}
                   </AdminTd>
                   <AdminTd className="text-slate-600">{book.trekTitle}</AdminTd>
                   <AdminTd>
@@ -102,13 +106,18 @@ export default function AdminBookings() {
                   <AdminTd className="text-slate-600">{book.date}</AdminTd>
                   <AdminTd className="font-semibold tabular-nums">₹{book.amount.toLocaleString()}</AdminTd>
                   <AdminTd>
+                    <AdminBadge variant={statusToBadge(book.paymentStatus || 'unpaid')} dot>
+                      {book.paymentStatus || 'unpaid'}
+                    </AdminBadge>
+                  </AdminTd>
+                  <AdminTd>
                     <AdminBadge variant={statusToBadge(book.status)} dot>
                       {book.status}
                     </AdminBadge>
                   </AdminTd>
                   <AdminTd>
                     <div className="flex flex-wrap gap-1">
-                      {book.status === 'pending' ? (
+                      {book.status === 'pending' || book.status === 'pending_payment' || book.status === 'payment_failed' ? (
                         <>
                           <button
                             type="button"

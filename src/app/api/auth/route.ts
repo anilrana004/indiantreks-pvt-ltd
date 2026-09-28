@@ -1,11 +1,40 @@
 import { NextResponse } from 'next/server';
 import { adminSessionCookieOptions, createAdminSessionToken } from '@/lib/admin/session';
+import { isProductionRuntime } from '@/lib/env/is-production';
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@indiantreks.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const DEV_ADMIN_EMAIL = 'admin@indiantreks.com';
+const DEV_ADMIN_PASSWORD = 'admin123';
+
+function resolveAdminCredentials():
+  | { ok: true; email: string; password: string }
+  | { ok: false; status: 503; error: string } {
+  const email = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD ?? '';
+
+  if (isProductionRuntime()) {
+    if (!email || !password) {
+      return { ok: false, status: 503, error: 'Admin credentials are not configured' };
+    }
+    if (password === DEV_ADMIN_PASSWORD || password.length < 12) {
+      return { ok: false, status: 503, error: 'Admin credentials are not configured for production' };
+    }
+    return { ok: true, email, password };
+  }
+
+  return {
+    ok: true,
+    email: email || DEV_ADMIN_EMAIL,
+    password: password || DEV_ADMIN_PASSWORD,
+  };
+}
 
 export async function POST(req: Request) {
   try {
+    const credentials = resolveAdminCredentials();
+    if (!credentials.ok) {
+      return NextResponse.json({ error: credentials.error }, { status: credentials.status });
+    }
+
     const body = await req.json();
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
@@ -14,14 +43,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 });
     }
 
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      const token = await createAdminSessionToken(email);
-      const response = NextResponse.json({
-        success: true,
-        user: { email, name: 'Admin', role: 'admin' },
-      });
-      response.cookies.set('admin_token', token, adminSessionCookieOptions());
-      return response;
+    if (email === credentials.email && password === credentials.password) {
+      try {
+        const token = await createAdminSessionToken(email);
+        const response = NextResponse.json({
+          success: true,
+          user: { email, name: 'Admin', role: 'admin' },
+        });
+        response.cookies.set('admin_token', token, adminSessionCookieOptions());
+        return response;
+      } catch {
+        return NextResponse.json(
+          { error: 'Admin session is not configured for production' },
+          { status: 503 },
+        );
+      }
     }
 
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

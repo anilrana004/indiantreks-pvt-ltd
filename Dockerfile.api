@@ -1,0 +1,27 @@
+# Railway API image — monorepo root context (workspace packages required)
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/store/package.json apps/store/
+COPY apps/admin/package.json apps/admin/
+COPY packages/db/package.json packages/db/
+COPY packages/shared/package.json packages/shared/
+COPY packages/operations/package.json packages/operations/
+
+RUN npm ci
+
+# API typecheck imports root Next.js knowledge modules via tsconfig paths (@/* → src/*)
+COPY apps/api apps/api
+COPY packages packages
+COPY src src
+COPY tsconfig.json ./
+
+RUN npm run build -w @indiantreks/api
+
+ENV NODE_ENV=production
+EXPOSE 8080
+
+CMD ["npm", "run", "start", "-w", "@indiantreks/api"]

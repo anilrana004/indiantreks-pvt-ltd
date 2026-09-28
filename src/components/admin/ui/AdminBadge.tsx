@@ -34,13 +34,22 @@ export function statusToBadge(status: string): BadgeVariant {
     case 'published':
     case 'healthy':
     case 'completed':
+    case 'paid':
+    case 'captured':
       return 'success';
     case 'pending':
+    case 'pending_payment':
+    case 'payment_processing':
+    case 'awaiting_payment':
+    case 'processing':
     case 'draft':
     case 'needs_review':
       return 'warning';
     case 'cancelled':
     case 'archived':
+    case 'payment_failed':
+    case 'failed':
+    case 'expired':
       return 'danger';
     case 'new':
       return 'info';

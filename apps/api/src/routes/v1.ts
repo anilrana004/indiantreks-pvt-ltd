@@ -127,6 +127,13 @@ v1.post('/auth/login', async (c) => {
       return apiError('INTERNAL_ERROR', 'Admin credentials not configured', 503);
     }
 
+    if (
+      process.env.NODE_ENV === 'production' &&
+      (adminPassword === 'admin123' || adminPassword.length < 12)
+    ) {
+      return apiError('INTERNAL_ERROR', 'Admin credentials are not configured for production', 503);
+    }
+
     if (!email || !password) {
       return apiError('VALIDATION_ERROR', 'Email and password required', 400);
     }

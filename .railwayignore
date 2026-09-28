@@ -1,0 +1,4 @@
+# Prefer npm for Railway (package-lock.json is source of truth for this deploy).
+# Dual lockfiles confuse Railpack into selecting outdated pnpm-lock.yaml.
+pnpm-lock.yaml
+pnpm-workspace.yaml

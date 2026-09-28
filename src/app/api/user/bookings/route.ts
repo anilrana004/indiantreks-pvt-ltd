@@ -7,8 +7,10 @@ export async function GET() {
   if (!user) return unauthorizedUserResponse();
 
   const bookings = await listBookingsForEmail(user.email);
-  const upcoming = bookings.filter((b) => b.status === 'pending' || b.status === 'confirmed');
-  const past = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled');
+    const upcoming = bookings.filter((b) =>
+      ['pending', 'pending_payment', 'payment_processing', 'confirmed', 'payment_failed'].includes(b.status),
+    );
+    const past = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'expired');
 
   return NextResponse.json({
     bookings,

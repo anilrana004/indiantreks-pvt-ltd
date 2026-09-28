@@ -1,12 +1,20 @@
+import { isProductionRuntime } from '@/lib/env/is-production';
+
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const encoder = new TextEncoder();
+const DEV_SESSION_SECRET = 'indiantreks-dev-session-secret';
 
 function sessionSecret(): string {
-  return (
-    process.env.ADMIN_SESSION_SECRET ??
-    process.env.ADMIN_PASSWORD ??
-    'indiantreks-dev-session-secret'
-  );
+  const configured = process.env.ADMIN_SESSION_SECRET?.trim();
+
+  if (isProductionRuntime()) {
+    if (!configured || configured.length < 32) {
+      throw new Error('ADMIN_SESSION_SECRET must be set (32+ chars) in production');
+    }
+    return configured;
+  }
+
+  return configured || process.env.ADMIN_PASSWORD || DEV_SESSION_SECRET;
 }
 
 async function importHmacKey(secret: string): Promise<CryptoKey> {

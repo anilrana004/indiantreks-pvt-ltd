@@ -1,14 +1,36 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, ArrowRight, Shield } from 'lucide-react';
 import type { Trek } from '@/lib/data';
-import { whatsappUrl } from '@/lib/contact';
+import { trekDetailPath } from '@/lib/data';
+import {
+  bookingSharingLabel,
+  bookingSharingOptions,
+  defaultBookingPkg,
+} from '@/lib/booking-sharing';
 
 export default function BookingSection({ trek }: { trek: Trek }) {
+  const router = useRouter();
+  const sharingOptions = useMemo(() => bookingSharingOptions(trek.pricing), [trek.pricing]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [form, setForm] = useState({ name: '', email: '', phone: '', persons: '1', date: '', pkg: 'Standard', payment: 'deposit', notes: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    persons: '1',
+    date: '',
+    pkg: defaultBookingPkg(trek.pricing),
+    payment: 'deposit',
+    notes: '',
+  });
+
+  const pkgKey = sharingOptions.some((o) => o.key === form.pkg)
+    ? form.pkg
+    : defaultBookingPkg(trek.pricing);
+  const pkgLabel = bookingSharingLabel(trek.pricing, pkgKey);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -26,22 +48,25 @@ export default function BookingSection({ trek }: { trek: Trek }) {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    if (step < 3) { setStep(s => s + 1); return; }
+    if (step < 3) {
+      setStep((s) => s + 1);
+      return;
+    }
     setLoading(true);
-    const msg = `Booking Request - ${trek.title}
-Package: ${form.pkg}
-Persons: ${form.persons}
-Date: ${form.date}
-Payment: ${form.payment === 'deposit' ? 'Advance Deposit' : 'Full Payment'}
-Name: ${form.name}
-Phone: ${form.phone}`;
-    window.open(whatsappUrl(msg), '_blank', 'noopener,noreferrer');
-    setLoading(false);
+    const params = new URLSearchParams({
+      pkg: pkgKey,
+      persons: form.persons,
+      men: form.persons,
+      women: '0',
+      payment: form.payment,
+      returnTo: trekDetailPath(trek),
+    });
+    if (form.date) params.set('date', form.date);
+    router.push(`/booking/${trek.id}?${params.toString()}`);
   };
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Steps */}
       <div className="flex items-center justify-center gap-2 mb-8">
         {['Trip Details', 'Contact Info', 'Confirm'].map((s, i) => (
           <div key={s} className="flex items-center gap-2">
@@ -58,11 +83,16 @@ Phone: ${form.phone}`;
         {step === 1 && (
           <div className="space-y-5">
             <h3 className="font-bold text-xl text-[#000000] mb-4">Select Your Package</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {trek.pricing.map(p => (
-                <button key={p.name} type="button" onClick={() => setForm(f => ({...f, pkg: p.name}))}
-                  className={`p-4 rounded-xl border-2 text-center transition-all ${form.pkg===p.name ? 'border-[#16a34a] bg-[#16a34a]/5' : 'border-gray-100 hover:border-gray-200'}`}>
-                  <div className="font-bold text-sm text-[#000000]">{p.name}</div>
+            <div className={`grid gap-3 ${sharingOptions.length >= 3 ? 'grid-cols-3' : sharingOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-1 max-w-sm'}`}>
+              {sharingOptions.map(p => (
+                <button key={p.key} type="button" onClick={() => setForm(f => ({...f, pkg: p.key}))}
+                  className={`relative p-4 rounded-xl border-2 text-center transition-all ${pkgKey===p.key ? 'border-[#16a34a] bg-[#16a34a]/5' : 'border-gray-100 hover:border-gray-200'}`}>
+                  {p.badge && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-[#16a34a] text-white text-[10px] font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                      {p.badge}
+                    </span>
+                  )}
+                  <div className="font-bold text-sm text-[#000000] mt-1">{p.label}</div>
                   <div className="text-lg font-bold text-[#16a34a]">₹{p.price.toLocaleString()}</div>
                   <div className="text-xs text-gray-400 mt-1">Deposit ₹{p.deposit.toLocaleString()}</div>
                 </button>
@@ -88,7 +118,7 @@ Phone: ${form.phone}`;
               <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
               <div className="flex gap-3">
                 {[
-                  { v: 'deposit', l: 'Advance Deposit', d: `Pay ₹${trek.pricing.find(p=>p.name===form.pkg)?.deposit.toLocaleString() || '0'} now` },
+                  { v: 'deposit', l: 'Advance Deposit', d: `Pay ₹${trek.pricing.find(p=>p.name===pkgKey)?.deposit.toLocaleString() || '0'} now` },
                   { v: 'full', l: 'Full Payment', d: 'Pay entire amount & save 5%' },
                   { v: 'half', l: '50% Now, 50% Later', d: 'Split payment option' },
                 ].map(o => (
@@ -134,7 +164,7 @@ Phone: ${form.phone}`;
 
             <div className="bg-[#16a34a]/5 rounded-xl p-4 flex items-start gap-3">
               <Shield className="w-5 h-5 text-[#16a34a] shrink-0 mt-0.5" />
-              <div className="text-xs text-gray-600">Your information is secure. We will contact you within 24 hours to confirm your booking and process the payment.</div>
+              <div className="text-xs text-gray-600">Your information is secure. Continue to secure Razorpay checkout to complete payment.</div>
             </div>
           </div>
         )}
@@ -143,15 +173,15 @@ Phone: ${form.phone}`;
           <div className="space-y-5">
             <h3 className="font-bold text-xl text-[#000000] mb-4">Confirm Your Booking</h3>
             <div className="bg-gray-50 rounded-xl p-6 space-y-3">
-              <div className="flex justify-between text-sm"><span className="text-gray-500">Trek</span><span className="font-semibold">{trek.title}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-500">Package</span><span className="font-semibold">{form.pkg}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Package</span><span className="font-semibold">{trek.title}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Occupancy</span><span className="font-semibold">{pkgLabel}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span className="font-semibold">{form.date}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Persons</span><span className="font-semibold">{form.persons}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Name</span><span className="font-semibold">{form.name}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Phone</span><span className="font-semibold">{form.phone}</span></div>
               <hr className="border-gray-200" />
               {(() => {
-                const pkg = trek.pricing.find(p => p.name === form.pkg);
+                const pkg = trek.pricing.find(p => p.name === pkgKey);
                 const total = pkg ? pkg.price * parseInt(form.persons) : 0;
                 const deposit = pkg ? pkg.deposit * parseInt(form.persons) : 0;
                 return (<>
@@ -166,7 +196,7 @@ Phone: ${form.phone}`;
         <div className="flex gap-3 mt-8">
           {step > 1 && <button type="button" onClick={() => setStep(s => s-1)} className="px-6 py-3 rounded-full border-2 border-gray-200 text-gray-700 font-semibold text-sm hover:border-gray-300 transition-all">Back</button>}
           <button type="submit" disabled={loading} className="flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm bg-[#16a34a] hover:bg-[#15803d] text-white disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? 'Processing...' : step === 1 ? 'Continue to Contact' : step === 2 ? 'Review Booking' : 'Confirm & Send to WhatsApp'} {!loading && <ArrowRight className="w-4 h-4" />}
+            {loading ? 'Opening checkout...' : step === 1 ? 'Continue to Contact' : step === 2 ? 'Review Booking' : 'Continue to Payment'} {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </div>
       </form>

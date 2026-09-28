@@ -6,6 +6,11 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { treks, trekDetailPath, type Trek } from '@/lib/data';
+import {
+  bookingSharingLabel,
+  bookingSharingOptions,
+  defaultBookingPkg,
+} from '@/lib/booking-sharing';
 import { getDepartureBatches, parseISODate, type TrekBatch } from '@/lib/batches';
 import { blogDate, blogPath, blogThumb, getRelatedPosts, type RelatedPost } from '@/lib/blog';
 import { safeImage, trekPhoto } from '@/lib/safe-image';
@@ -97,17 +102,6 @@ const baseNavLinks = [
 ];
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
-
-/** Roopkund Heaven booking card: pricing tiers surface as occupancy pills. */
-const OCCUPANCY_LABEL: Record<string, string> = {
-  Economic: 'Triple Sharing',
-  Standard: 'Twin Sharing',
-  Premium: 'Single Occupancy',
-};
-
-function occupancyLabel(tierName: string) {
-  return OCCUPANCY_LABEL[tierName] ?? tierName;
-}
 
 const DRAG_SCROLL_SKIP = 'button, a, input, select, textarea, label, [role="button"]';
 
@@ -590,6 +584,7 @@ export default function TrekDetailContent({
         ? 'International Trek'
         : 'Trek';
   const listHref = isYatra ? '/yatra' : isTrip ? '/trips' : '/treks';
+  const detailHref = trekDetailPath(trek, type);
 
   const extended = useMemo(() => getTrekExtended(trek), [trek]);
   const routeProfile = useMemo(() => getRouteProfile(trek, extended), [trek, extended]);
@@ -695,7 +690,8 @@ export default function TrekDetailContent({
   const [lightbox, setLightbox] = useState<number | null>(null);
 
   // ---- Booking state ------------------------------------------------------
-  const [tierName, setTierName] = useState(trek.pricing[0]?.name ?? 'Economic');
+  const sharingOptions = useMemo(() => bookingSharingOptions(trek.pricing), [trek.pricing]);
+  const [tierName, setTierName] = useState(() => defaultBookingPkg(trek.pricing));
   const pickupOptions = useMemo(() => {
     const raw = (trek.startEndPoint || trek.location || '').trim();
     const parts = raw
@@ -756,6 +752,7 @@ export default function TrekDetailContent({
   }, [trek.id]);
 
   const tier = trek.pricing.find((p) => p.name === tierName) ?? trek.pricing[0];
+  const occupancyLabel = bookingSharingLabel(trek.pricing, tierName);
   const basePrice = tier?.price ?? 0;
   /** City / gateway pickup (2nd pill) adds transport — Roopkund Heaven pattern. */
   const pickupSurcharge =
@@ -1084,13 +1081,14 @@ export default function TrekDetailContent({
     if (picked.size) params.set('addons', [...picked].join(','));
     if (gearLines.length) params.set('gear', encodeGearQuery(gearLines));
     params.set('total', String(total));
+    params.set('returnTo', detailHref);
     return `/booking/${trek.id}?${params.toString()}`;
   };
 
   const enquire = () => {
     const lines = [
       `Hi Indian Treks! I'd like details for ${trek.title} (${trek.duration}).`,
-      `Occupancy: ${occupancyLabel(tierName)}`,
+      `Occupancy: ${occupancyLabel}`,
       selectedBatch ? `Preferred date: ${selectedBatch.label}` : '',
       `Travellers: ${persons} (Men ${men}, Women ${women})`,
       `Pickup: ${pickup}`,
@@ -2113,26 +2111,29 @@ export default function TrekDetailContent({
 
                 <div className="bk-price-row">
                   <span className="bk-price-main" id="bk-pmain">
-                    {inr(unitPrice)}
+                    {inr(persons > 1 || addOnTotal > 0 || gearTotal > 0 ? total : unitPrice)}
                   </span>
                   {tier?.originalPrice != null && tier.originalPrice > basePrice && (
                     <span className="bk-price-old">{inr(tier.originalPrice + pickupSurcharge)}</span>
                   )}
                   {tier?.badge && <span className="bk-savings-badge">{tier.badge}</span>}
+                  {(persons > 1 || addOnTotal > 0 || gearTotal > 0 || pickupSurcharge > 0) && (
+                    <span className="bk-price-sub">{inr(unitPrice)} / person</span>
+                  )}
                 </div>
 
                 <hr className="bk-dashed" />
 
                 <div className="bk-sec">Occupancy</div>
                 <div className="bk-pills bk-pills--occ">
-                  {trek.pricing.map((p) => (
+                  {sharingOptions.map((p) => (
                     <button
                       type="button"
-                      key={p.name}
-                      className={`bk-pill${tierName === p.name ? ' bk-active' : ''}`}
-                      onClick={() => setTierName(p.name)}
+                      key={p.key}
+                      className={`bk-pill${tierName === p.key ? ' bk-active' : ''}`}
+                      onClick={() => setTierName(p.key)}
                     >
-                      {occupancyLabel(p.name)}
+                      {p.label}
                     </button>
                   ))}
                 </div>
@@ -2381,9 +2382,7 @@ export default function TrekDetailContent({
       <TrekGuestReviews
         packageId={trek.id}
         packageTitle={trek.title}
-        packageHref={
-          isYatra ? `/yatra/${trek.id}` : isTrip ? `/trips/${trek.id}` : trekDetailPath(trek)
-        }
+        packageHref={detailHref}
         packageKind={isYatra ? 'yatra' : isTrip ? 'trip' : 'trek'}
         kindLabel={kindLabel}
         curated={pageTestimonials}
@@ -2507,7 +2506,7 @@ export default function TrekDetailContent({
         >
           <strong>{inr(total)}</strong>
           <span>
-            {occupancyLabel(tierName)}
+            {occupancyLabel}
             {persons > 0 ? ` · ${persons} traveller${persons === 1 ? '' : 's'}` : ''}
             {selectedBatch ? ` · ${selectedBatch.label}` : ''}
           </span>

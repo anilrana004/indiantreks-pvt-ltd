@@ -28,6 +28,8 @@ export function isStorefrontApiPath(pathname: string): boolean {
     pathname.startsWith('/api/contacts') ||
     pathname.startsWith('/api/newsletter') ||
     pathname.startsWith('/api/bookings') ||
+    pathname.startsWith('/api/payments') ||
+    pathname.startsWith('/api/webhooks/') ||
     pathname.startsWith('/api/assistant') ||
     pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/user/')

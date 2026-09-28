@@ -2,8 +2,14 @@
 import { useSearchParams, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useMemo, useState, Suspense } from 'react';
-import { ArrowRight, Shield, Check, ChevronRight, Star, Clock, Users, Phone, Calendar, CreditCard, Lock, Wallet, Percent, Gift, Loader, Ban } from 'lucide-react';
-import { treks } from '@/lib/data';
+import { ArrowRight, Shield, Check, ChevronRight, Star, Clock, Users, Phone, Calendar, CreditCard, Lock, Wallet, Percent, Gift, Loader, Ban, Plus, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { treks, trekDetailPath } from '@/lib/data';
+import {
+  bookingSharingLabel,
+  bookingSharingOptions,
+  defaultBookingPkg,
+} from '@/lib/booking-sharing';
 import {
   cartForTrek,
   cartSubtotal,
@@ -16,28 +22,72 @@ import {
 } from '@/lib/gear-rental';
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
 import { addOns } from '@/lib/trek-detail-content';
+import type { PublicUser } from '@/lib/user-auth/types';
+import { openRazorpayCheckout } from '@/lib/payments/checkout-client';
+import type { BookingPayment } from '@/lib/operations/types';
+
+type BookingParticipant = {
+  id: string;
+  name: string;
+  age: string;
+  gender: string;
+  phone: string;
+};
+
+function newParticipant(): BookingParticipant {
+  return {
+    id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: '',
+    age: '',
+    gender: '',
+    phone: '',
+  };
+}
+
+function formatUserPhone(user: PublicUser): string {
+  if (!user.phone) return '';
+  const code = user.phoneCountryCode?.trim() || '+91';
+  const digits = user.phone.trim();
+  if (digits.startsWith('+')) return digits;
+  return `${code} ${digits}`.trim();
+}
 
 function BookingContent() {
   const params = useParams();
   const sp = useSearchParams();
+  const router = useRouter();
   const trek = treks.find(t => t.id === params.id);
   const [step, setStep] = useState(1);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState('');
   const [form, setForm] = useState({
     name: '',
     email: '',
     phone: '',
+    city: '',
     persons: sp.get('persons') || '1',
     men: sp.get('men') || sp.get('persons') || '1',
     women: sp.get('women') || '0',
     date: sp.get('date') || '',
-    pkg: sp.get('pkg') || 'Standard',
+    pkg: sp.get('pkg') || '',
     pickup: sp.get('pickup') || '',
     payment: 'deposit',
     notes: '',
   });
+  const [participants, setParticipants] = useState<BookingParticipant[]>([]);
+  const [signedInUser, setSignedInUser] = useState<PublicUser | null>(null);
+  const [profileFilled, setProfileFilled] = useState(false);
   const [gearTick, setGearTick] = useState(0);
 
   const gearQuery = sp.get('gear');
+  const returnToRaw = sp.get('returnTo');
+  const returnTo =
+    returnToRaw &&
+    returnToRaw.startsWith('/') &&
+    !returnToRaw.startsWith('//') &&
+    !returnToRaw.includes('\\')
+      ? returnToRaw
+      : null;
 
   useEffect(() => {
     if (!trek) return;
@@ -51,24 +101,62 @@ function BookingContent() {
     return subscribeGearCart(refresh);
   }, [trek, gearQuery]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/user/auth/me', { credentials: 'include', cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as { user: PublicUser };
+        const user = body.user;
+        if (!user || cancelled) return;
+        setSignedInUser(user);
+        setForm((f) => ({
+          ...f,
+          name: f.name.trim() || user.name || [user.firstName, user.lastName].filter(Boolean).join(' '),
+          email: f.email.trim() || user.email || '',
+          phone: f.phone.trim() || formatUserPhone(user),
+        }));
+        setProfileFilled(true);
+      } catch {
+        // Guest booking — leave fields empty
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const gearLines = useMemo(
     () => (trek ? cartForTrek(trek.id) : []),
     [trek, gearTick],
   );
   const gearTotal = cartSubtotal(gearLines);
 
+  const sharingOptions = useMemo(
+    () => (trek ? bookingSharingOptions(trek.pricing) : []),
+    [trek],
+  );
+  const pkgKey = useMemo(() => {
+    if (!trek) return form.pkg;
+    if (sharingOptions.some((o) => o.key === form.pkg)) return form.pkg;
+    return defaultBookingPkg(trek.pricing);
+  }, [trek, sharingOptions, form.pkg]);
+  const pkgLabel = trek ? bookingSharingLabel(trek.pricing, pkgKey) : form.pkg;
+
   if (!trek) return (
     <div className="pt-28 min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4"><Ban className="w-8 h-8 text-red-500" /></div>
-        <h2 className="text-xl font-bold text-[#000000] mb-2">Trek Not Found</h2>
-        <p className="text-gray-500 mb-6">The trek you are looking for does not exist or has been removed.</p>
+        <h2 className="text-xl font-bold text-[#000000] mb-2">Package Not Found</h2>
+        <p className="text-gray-500 mb-6">The trek, yatra, or trip you are looking for does not exist or has been removed.</p>
         <Link href="/treks" className="inline-flex items-center gap-2 bg-[#16a34a] hover:bg-[#15803d] text-white font-semibold px-6 py-3 rounded-full transition-all">Browse All Treks <ArrowRight className="w-4 h-4" /></Link>
       </div>
     </div>
   );
 
-  const selectedPkg = trek.pricing.find(p => p.name === form.pkg) || trek.pricing[0];
+  const backHref = returnTo || trekDetailPath(trek);
+  const selectedPkg = trek.pricing.find(p => p.name === pkgKey) || trek.pricing[0];
   const personCount = Math.max(1, parseInt(form.persons, 10) || 1);
   const pickupFee = Math.max(0, parseInt(sp.get('pickupFee') || '0', 10) || 0);
   const selectedAddonIds = (sp.get('addons') || '')
@@ -83,6 +171,8 @@ function BookingContent() {
   const total = urlTotal > 0 ? urlTotal : tripTotal + gearTotal;
   const depositAmt = selectedPkg.deposit * personCount;
   const payableNow = form.payment === 'deposit' ? depositAmt : form.payment === 'full' ? total : Math.ceil(tripTotal / 2) + gearTotal;
+  const expectedOthers = Math.max(0, personCount - 1);
+  const namedParticipants = participants.filter((p) => p.name.trim());
 
   const steps = [
     { num: 1, label: 'Package & Date', icon: Calendar },
@@ -90,24 +180,137 @@ function BookingContent() {
     { num: 3, label: 'Confirm', icon: Check },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const updateParticipant = (id: string, patch: Partial<BookingParticipant>) => {
+    setParticipants((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  };
+
+  const addParticipant = () => {
+    setParticipants((list) => [...list, newParticipant()]);
+  };
+
+  const removeParticipant = (id: string) => {
+    setParticipants((list) => list.filter((p) => p.id !== id));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step < 3) { setStep(s => s + 1); return; }
-    const gearNote = gearLines.length ? `\n*Rental gear:* ${formatGearLines(gearLines)}\n*Gear total:* ₹${gearTotal.toLocaleString()}` : '';
-    const addonNote = selectedAddons.length
-      ? `\n*Add-ons:* ${selectedAddons.map((addon) => `${addon.name} (₹${(addon.price * personCount).toLocaleString()})`).join(', ')}`
-      : '';
-    const pickupNote = form.pickup ? `\n*Pickup:* ${form.pickup}${pickupFee ? ` (+₹${pickupFee.toLocaleString()}/person)` : ''}` : '';
-    const travellerNote = `\n*Travellers:* ${personCount} (Men ${form.men}, Women ${form.women})`;
-    const msg = `*New Booking - Indian Treks*\n\n*Trek:* ${trek.title}\n*Duration:* ${trek.duration}\n*Package:* ${form.pkg}${pickupNote}${travellerNote}\n*Date:* ${form.date}${addonNote}\n*Payment:* ${form.payment === 'deposit' ? 'Advance Deposit' : form.payment === 'full' ? 'Full Payment' : '50% Now'}\n*Trip total:* ₹${total.toLocaleString()}\n*Pay now:* ₹${payableNow.toLocaleString()}${gearNote}\n*Name:* ${form.name}\n*Email:* ${form.email}\n*Phone:* ${form.phone}\n${form.notes ? `*Notes:* ${form.notes}` : ''}`;
-    window.open(whatsappUrl(msg), '_blank');
+    if (step < 3) {
+      setStep((s) => s + 1);
+      return;
+    }
+    if (paying) return;
+    setPayError('');
+    setPaying(true);
+
+    try {
+      if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) {
+        setPayError('Please complete your contact details and travel date.');
+        setPaying(false);
+        setStep(2);
+        return;
+      }
+
+      const checkoutRes = await fetch('/api/bookings/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          trekId: trek.id,
+          packageName: pkgKey,
+          persons: personCount,
+          paymentMode: form.payment as BookingPayment,
+          addonIds: selectedAddonIds,
+          pickupFeePerPerson: pickupFee,
+          gearLines: gearLines.map((g) => ({ gearId: g.gearId, qty: g.qty })),
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          city: form.city,
+          date: form.date,
+          notes: form.notes,
+          pickup: form.pickup,
+          participants: namedParticipants.map(({ name, age, gender, phone }) => ({
+            name,
+            age,
+            gender,
+            phone,
+          })),
+        }),
+      });
+      const checkoutBody = await checkoutRes.json();
+      if (!checkoutRes.ok) {
+        throw new Error(checkoutBody.error || 'Unable to create booking');
+      }
+
+      const { bookingId, checkoutToken } = checkoutBody as {
+        bookingId: string;
+        checkoutToken: string;
+      };
+
+      try {
+        sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
+      } catch {
+        /* ignore */
+      }
+
+      const orderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ bookingId, checkoutToken }),
+      });
+      const orderBody = await orderRes.json();
+      if (!orderRes.ok) {
+        throw new Error(orderBody.error || 'Unable to start payment');
+      }
+
+      await openRazorpayCheckout(orderBody, {
+        onSuccess: async (response) => {
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                bookingId,
+                checkoutToken,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verifyBody = await verifyRes.json();
+            if (!verifyRes.ok) {
+              throw new Error(verifyBody.error || 'Payment verification failed');
+            }
+            router.push(
+              `/booking/success?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`,
+            );
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'Verification failed';
+            router.push(
+              `/booking/payment-failed?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}&reason=${encodeURIComponent(message)}`,
+            );
+          } finally {
+            setPaying(false);
+          }
+        },
+        onDismiss: () => {
+          setPaying(false);
+          setPayError('Payment window closed. You can try again when ready.');
+        },
+      });
+    } catch (err) {
+      setPaying(false);
+      setPayError(err instanceof Error ? err.message : 'Payment could not be started');
+    }
   };
 
   return (
     <div className="pt-20 lg:pt-24 pb-12 lg:pb-20 bg-gray-50 min-h-screen">
       <div className="container mx-auto max-w-5xl">
         <div className="mb-6 lg:mb-8">
-          <Link href={`/treks/${trek.id}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#16a34a] transition-colors mb-4">
+          <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#16a34a] transition-colors mb-4">
             <ChevronRight className="w-4 h-4 rotate-180" /> Back to {trek.title}
           </Link>
           <h1 className="font-[family-name:var(--font-heading)] text-2xl lg:text-3xl font-bold text-[#000000]">Complete Your Booking</h1>
@@ -116,7 +319,7 @@ function BookingContent() {
             <div className="mt-4 rounded-2xl border border-[#16a34a]/15 bg-[#16a34a]/5 p-4 text-sm">
               <p className="text-xs font-bold uppercase tracking-wider text-[#15803d] mb-2">Your trek selections</p>
               <ul className="space-y-1.5 text-gray-700">
-                <li><span className="text-gray-500">Occupancy:</span> <strong>{form.pkg}</strong></li>
+                <li><span className="text-gray-500">Occupancy:</span> <strong>{pkgLabel}</strong></li>
                 {form.pickup ? <li><span className="text-gray-500">Pickup:</span> <strong>{form.pickup}{pickupFee ? ` (+₹${pickupFee.toLocaleString()}/person)` : ''}</strong></li> : null}
                 <li><span className="text-gray-500">Travellers:</span> <strong>{personCount} (Men {form.men}, Women {form.women})</strong></li>
                 {form.date ? <li><span className="text-gray-500">Date:</span> <strong>{form.date}</strong></li> : null}
@@ -153,13 +356,13 @@ function BookingContent() {
               <>
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
                   <h2 className="font-bold text-lg text-[#000000] mb-5">Select Package</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {trek.pricing.map(p => (
-                      <button key={p.name} type="button" onClick={() => setForm(f => ({ ...f, pkg: p.name }))}
-                        className={`relative p-4 rounded-xl border-2 text-center transition-all ${form.pkg === p.name ? 'border-[#16a34a] bg-[#16a34a]/5 shadow-sm' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
+                  <div className={`grid gap-3 ${sharingOptions.length >= 3 ? 'grid-cols-1 sm:grid-cols-3' : sharingOptions.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 max-w-sm'}`}>
+                    {sharingOptions.map(p => (
+                      <button key={p.key} type="button" onClick={() => setForm(f => ({ ...f, pkg: p.key }))}
+                        className={`relative p-4 rounded-xl border-2 text-center transition-all ${pkgKey === p.key ? 'border-[#16a34a] bg-[#16a34a]/5 shadow-sm' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
                         {p.badge && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-[#16a34a] text-white text-[10px] font-bold px-3 py-1 rounded-full whitespace-nowrap">{p.badge}</span>}
                         <div className="mt-1">
-                          <div className="font-bold text-sm text-[#000000]">{p.name}</div>
+                          <div className="font-bold text-sm text-[#000000]">{p.label}</div>
                           <div className="text-xl lg:text-2xl font-bold text-[#16a34a] mt-1">₹{p.price.toLocaleString()}</div>
                           <div className="text-xs text-gray-400">per person</div>
                           {p.originalPrice && <div className="text-xs text-gray-400 line-through mt-1">₹{p.originalPrice.toLocaleString()}</div>}
@@ -213,48 +416,171 @@ function BookingContent() {
                     ))}
                   </div>
                   <div className="mt-4 flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
-                    <Lock className="w-3.5 h-3.5 text-[#16a34a]" /> Secure payment via WhatsApp. No card details stored.
+                    <Lock className="w-3.5 h-3.5 text-[#16a34a]" /> Secure payment via Razorpay. Card details never touch our servers.
                   </div>
                 </div>
               </>
             )}
 
             {step === 2 && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
-                <h2 className="font-bold text-lg text-[#000000] mb-5">Your Contact Details</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name <span className="text-red-400">*</span></label>
-                    <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="Your full name" />
+              <div className="space-y-5">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                    <h2 className="font-bold text-lg text-[#000000]">Your Contact Details</h2>
+                    {signedInUser && profileFilled ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#16a34a]/10 px-3 py-1 text-[11px] font-semibold text-[#15803d]">
+                        <Check className="w-3 h-3" />
+                        Filled from your account
+                      </span>
+                    ) : null}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Email <span className="text-red-400">*</span></label>
-                    <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="email@example.com" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-400">*</span></label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input type="tel" required value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="+91 98765 43210" />
+                  {signedInUser ? (
+                    <p className="mb-4 text-xs text-gray-500">
+                      Signed in as <span className="font-semibold text-gray-700">{signedInUser.email}</span>. You&apos;re the lead traveller — add anyone else joining below.
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name <span className="text-red-400">*</span></label>
+                      <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="Your full name" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Email <span className="text-red-400">*</span></label>
+                      <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="email@example.com" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-400">*</span></label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input type="tel" required value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                          className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="+91 98765 43210" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
+                      <input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="Your city" />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
-                    <input type="text" value={form.notes.split(',')[0] || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value + (f.notes.includes(',') ? f.notes.substring(f.notes.indexOf(',')) : '') }))}
-                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="Your city" />
+                  <div className="mt-5">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Special Requests <span className="text-gray-400">(optional)</span></label>
+                    <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm resize-none" placeholder="Dietary needs, health conditions, room preferences..." />
+                  </div>
+                  <div className="mt-5 bg-[#16a34a]/5 rounded-xl p-4 flex items-start gap-3">
+                    <Shield className="w-5 h-5 text-[#16a34a] shrink-0 mt-0.5" />
+                    <div className="text-xs text-gray-600 leading-relaxed">Your information is secure. After you pay on Razorpay, our backend verifies the payment before confirming your booking. No card details are stored on our servers.</div>
                   </div>
                 </div>
-                <div className="mt-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Special Requests <span className="text-gray-400">(optional)</span></label>
-                  <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm resize-none" placeholder="Dietary needs, health conditions, room preferences..." />
-                </div>
-                <div className="mt-5 bg-[#16a34a]/5 rounded-xl p-4 flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-[#16a34a] shrink-0 mt-0.5" />
-                  <div className="text-xs text-gray-600 leading-relaxed">Your information is secure. We will contact you via WhatsApp within 24 hours to confirm your booking and process the payment. No card details are stored on our servers.</div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                    <div>
+                      <h2 className="font-bold text-lg text-[#000000]">Other Participants</h2>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {expectedOthers > 0
+                          ? `Add details for the other ${expectedOthers} traveller${expectedOthers > 1 ? 's' : ''} joining with you.`
+                          : 'Travelling solo? You can skip this — or add someone if plans change.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addParticipant}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[#16a34a]/30 bg-[#16a34a]/5 px-4 py-2 text-sm font-semibold text-[#15803d] hover:bg-[#16a34a]/10 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add participant
+                    </button>
+                  </div>
+
+                  {participants.length === 0 ? (
+                    <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
+                      <Users className="mx-auto mb-2 h-8 w-8 text-gray-300" />
+                      <p className="text-sm text-gray-500">No other participants yet</p>
+                      <button
+                        type="button"
+                        onClick={addParticipant}
+                        className="mt-3 text-sm font-semibold text-[#16a34a] hover:text-[#15803d]"
+                      >
+                        + Add a co-traveller
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-4">
+                      {participants.map((p, index) => (
+                        <div key={p.id} className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                          <div className="mb-3 flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                              Participant {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeParticipant(p.id)}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+                              aria-label={`Remove participant ${index + 1}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Remove
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Full name</label>
+                              <input
+                                type="text"
+                                value={p.name}
+                                onChange={(e) => updateParticipant(p.id, { name: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                                placeholder="Co-traveller full name"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Age</label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={120}
+                                value={p.age}
+                                onChange={(e) => updateParticipant(p.id, { age: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                                placeholder="Age"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Gender</label>
+                              <select
+                                value={p.gender}
+                                onChange={(e) => updateParticipant(p.id, { gender: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                              >
+                                <option value="">Select</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                              </select>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-gray-400">(optional)</span></label>
+                              <input
+                                type="tel"
+                                value={p.phone}
+                                onChange={(e) => updateParticipant(p.id, { phone: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                                placeholder="+91 …"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {expectedOthers > 0 && participants.length < expectedOthers ? (
+                        <p className="text-xs text-[#15803d]">
+                          {expectedOthers - participants.length} more participant{expectedOthers - participants.length > 1 ? 's' : ''} suggested for your group size.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -272,7 +598,7 @@ function BookingContent() {
                     <div><h4 className="font-semibold text-sm text-[#000000]">{trek.title}</h4><p className="text-xs text-gray-500">{trek.duration} &middot; {trek.difficulty}</p></div>
                   </div>
                   <div className="space-y-2.5 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">Package</span><span className="font-semibold">{form.pkg} - ₹{selectedPkg.price.toLocaleString()}/person</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Package</span><span className="font-semibold">{pkgLabel} - ₹{selectedPkg.price.toLocaleString()}/person</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Travel Date</span><span className="font-semibold">{form.date}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Persons</span><span className="font-semibold">{personCount} (Men {form.men}, Women {form.women})</span></div>
                     {form.pickup ? <div className="flex justify-between"><span className="text-gray-500">Pickup</span><span className="font-semibold">{form.pickup}{pickupFee ? ` (+₹${pickupFee.toLocaleString()}/person)` : ''}</span></div> : null}
@@ -284,6 +610,21 @@ function BookingContent() {
                     ))}
                     <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="font-semibold">{form.name || 'Not provided'}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Phone</span><span className="font-semibold">{form.phone || 'Not provided'}</span></div>
+                    {form.city.trim() ? <div className="flex justify-between"><span className="text-gray-500">City</span><span className="font-semibold">{form.city}</span></div> : null}
+                    {namedParticipants.length > 0 ? (
+                      <div className="pt-1">
+                        <div className="text-gray-500 mb-1.5">Other participants</div>
+                        <ul className="space-y-1 text-right">
+                          {namedParticipants.map((p) => (
+                            <li key={p.id} className="font-semibold">
+                              {p.name}
+                              {p.age.trim() ? ` · ${p.age}` : ''}
+                              {p.gender.trim() ? ` · ${p.gender}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <div className="flex justify-between"><span className="text-gray-500">Payment Mode</span><span className="font-semibold">{form.payment === 'deposit' ? 'Advance Deposit' : form.payment === 'full' ? 'Full Payment' : '50% Now'}</span></div>
                     {form.notes && <div className="flex justify-between"><span className="text-gray-500">Notes</span><span className="font-semibold text-right max-w-[60%]">{form.notes}</span></div>}
                     {gearLines.length > 0 && (
@@ -300,16 +641,32 @@ function BookingContent() {
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
+              {payError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {payError}
+                </div>
+              ) : null}
+              <div className="flex gap-3">
               {step > 1 && (
-                <button type="button" onClick={() => setStep(s => s - 1)}
-                  className="px-6 py-3 rounded-full border-2 border-gray-200 text-gray-700 font-semibold text-sm hover:border-gray-300 hover:bg-white transition-all">
+                <button type="button" onClick={() => setStep(s => s - 1)} disabled={paying}
+                  className="px-6 py-3 rounded-full border-2 border-gray-200 text-gray-700 font-semibold text-sm hover:border-gray-300 hover:bg-white transition-all disabled:opacity-60">
                   Back
                 </button>
               )}
-              <button type="submit" className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm ${step === 3 ? 'bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25' : 'bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25'}`}>
-                {step === 1 ? 'Continue to Details' : step === 2 ? 'Review Booking' : 'Confirm & Send via WhatsApp'} <ArrowRight className="w-4 h-4" />
+              <button type="submit" disabled={paying} className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm disabled:opacity-70 bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25`}>
+                {paying ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Opening Razorpay…
+                  </>
+                ) : (
+                  <>
+                    {step === 1 ? 'Continue to Details' : step === 2 ? 'Review Booking' : `Pay Now · ₹${payableNow.toLocaleString()}`}
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
+              </div>
             </div>
           </div>
 
@@ -369,7 +726,7 @@ function BookingContent() {
                   ) : null}
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Package</span>
-                    <span className="text-[#16a34a] font-medium text-xs">{form.pkg}</span>
+                    <span className="text-[#16a34a] font-medium text-xs">{pkgLabel}</span>
                   </div>
                   <hr className="border-gray-100" />
                   <div className="flex justify-between items-center">
@@ -385,7 +742,7 @@ function BookingContent() {
 
               <div className="bg-[#000000] rounded-2xl p-5 text-white text-sm space-y-3">
                 <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-[#16a34a]" /><span className="font-semibold text-xs">Secure Booking</span></div>
-                <p className="text-gray-300 text-xs leading-relaxed">Your booking will be confirmed via WhatsApp. Our team will reach out within 24 hours to process your payment and share trip details.</p>
+                <p className="text-gray-300 text-xs leading-relaxed">Pay securely with Razorpay (UPI, cards, netbanking, wallets, EMI where available). Your booking is confirmed only after our server verifies the payment.</p>
                 <div className="flex items-center gap-2 text-xs text-gray-400">
                   <CreditCard className="w-3.5 h-3.5" /> EMI options available
                 </div>

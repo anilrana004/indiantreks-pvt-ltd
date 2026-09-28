@@ -38,6 +38,19 @@ function toBooking(row: typeof bookings.$inferSelect): Booking {
     status: row.status as BookingStatus,
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
+    userId: row.userId,
+    referenceCode: row.referenceCode,
+    city: row.city,
+    participantsJson: row.participantsJson,
+    pricingSnapshot: row.pricingSnapshot,
+    payablePaise: row.payablePaise,
+    totalPaise: row.totalPaise,
+    currency: row.currency,
+    paymentStatus: row.paymentStatus as Booking['paymentStatus'],
+    holdExpiresAt: row.holdExpiresAt?.toISOString() ?? null,
+    confirmedAt: row.confirmedAt?.toISOString() ?? null,
+    emailStatus: row.emailStatus,
+    updatedAt: row.updatedAt?.toISOString(),
   };
 }
 
@@ -108,8 +121,19 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
       date: input.date,
       payment: input.payment,
       amount: input.amount,
-      status: input.status ?? 'pending',
+      status: input.status ?? 'pending_payment',
       notes: input.notes,
+      userId: input.userId ?? null,
+      referenceCode: input.referenceCode ?? null,
+      city: input.city ?? '',
+      participantsJson: input.participantsJson ?? '[]',
+      pricingSnapshot: input.pricingSnapshot ?? '{}',
+      payablePaise: input.payablePaise ?? input.amount * 100,
+      totalPaise: input.totalPaise ?? input.amount * 100,
+      currency: input.currency ?? 'INR',
+      checkoutTokenHash: input.checkoutTokenHash ?? null,
+      paymentStatus: input.paymentStatus ?? 'unpaid',
+      updatedAt: new Date(),
     })
     .returning();
   return toBooking(row!);

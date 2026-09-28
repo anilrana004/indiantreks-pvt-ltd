@@ -1,0 +1,14 @@
+# Railway service: @indiantreks/api (Hono)
+# Deploy from monorepo ROOT. Uses Dockerfile so npm workspaces install reliably
+# (Railpack otherwise prefers broken dual lockfile / pnpm detection).
+# Do NOT set Vercel NEXT_PUBLIC_API_URL until payment + customer auth are on this API.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.api"
+
+[deploy]
+startCommand = "npm run start -w @indiantreks/api"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"

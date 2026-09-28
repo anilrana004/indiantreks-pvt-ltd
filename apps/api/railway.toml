@@ -1,9 +1,11 @@
+# Prefer monorepo-root railway.toml + Dockerfile.api (service root = repo root).
+# This file is fallback only if a service root is apps/api (not recommended).
+
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install && npm run build -w @indiantreks/api"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.api"
 
 [deploy]
-startCommand = "npm run start -w @indiantreks/api"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

@@ -1,7 +1,41 @@
-/** Shared types for storefront operations (bookings, contacts, etc.). */
+/** Payment + booking status vocabulary for Razorpay checkout. */
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+export type BookingStatus =
+  | 'pending'
+  | 'pending_payment'
+  | 'payment_processing'
+  | 'confirmed'
+  | 'payment_failed'
+  | 'cancelled'
+  | 'completed'
+  | 'expired';
+
+export type BookingPaymentStatus =
+  | 'unpaid'
+  | 'awaiting_payment'
+  | 'processing'
+  | 'paid'
+  | 'failed'
+  | 'refund_pending'
+  | 'refunded'
+  | 'partially_refunded';
+
 export type BookingPayment = 'deposit' | 'half' | 'full';
+
+export type PaymentTxStatus =
+  | 'created'
+  | 'attempted'
+  | 'authorized'
+  | 'captured'
+  | 'failed'
+  | 'refund_pending'
+  | 'refunded';
+
+export type RefundStatus =
+  | 'requested'
+  | 'initiated'
+  | 'processed'
+  | 'failed';
 
 export type Booking = {
   id: string;
@@ -18,6 +52,19 @@ export type Booking = {
   status: BookingStatus;
   notes: string;
   createdAt: string;
+  userId?: string | null;
+  referenceCode?: string | null;
+  city?: string;
+  participantsJson?: string;
+  pricingSnapshot?: string;
+  payablePaise?: number;
+  totalPaise?: number;
+  currency?: string;
+  paymentStatus?: BookingPaymentStatus;
+  holdExpiresAt?: string | null;
+  confirmedAt?: string | null;
+  emailStatus?: string;
+  updatedAt?: string;
 };
 
 export type ContactStatus = 'new' | 'read' | 'replied';
@@ -66,6 +113,7 @@ export type SiteUser = {
 
 export type CreateBookingInput = Omit<Booking, 'id' | 'createdAt' | 'status'> & {
   status?: BookingStatus;
+  checkoutTokenHash?: string | null;
 };
 
 export type CreateContactInput = Omit<Contact, 'id' | 'createdAt' | 'status'> & {

@@ -2,6 +2,9 @@
   "name": "indiantreks",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -21,7 +24,8 @@
     "db:verify": "tsx scripts/verify-foundation.ts",
     "verify:production": "tsx scripts/verify-production.ts",
     "auth:smoke": "tsx scripts/smoke-customer-auth.ts",
-    "auth:backup": "tsx scripts/backup-customer-auth.ts"
+    "auth:backup": "tsx scripts/backup-customer-auth.ts",
+    "payments:smoke": "tsx scripts/smoke-payments.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -30,6 +34,7 @@
     "mapbox-gl": "^3.29.0",
     "next": "16.2.12",
     "postgres": "^3.4.9",
+    "razorpay": "^2.9.8",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "swiper": "^14.1.0"

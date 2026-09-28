@@ -42,6 +42,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# railway local link metadata
+.railway
+
+# local-only generated production secrets (never commit)
+.vercel-prod-secrets.local
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
