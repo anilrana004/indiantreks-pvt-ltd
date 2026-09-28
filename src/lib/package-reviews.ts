@@ -115,3 +115,13 @@ export function readFileAsDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/** Validate an image File before preview / upload (same limits as Cloudinary path). */
+export function assertReviewImageFile(file: File): void {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Please choose an image file.');
+  }
+  if (file.size > PACKAGE_REVIEW_LIMITS.maxImageBytes) {
+    throw new Error('Each image must be under 900 KB. Compress and try again.');
+  }
+}

@@ -51,6 +51,60 @@ export async function fetchAdminContacts(): Promise<Contact[]> {
   return asList(data);
 }
 
+export type AdminGuestReviewRow = {
+  id: string;
+  packageId: string;
+  packageTitle: string;
+  packageHref: string;
+  packageKind: 'trek' | 'yatra' | 'trip';
+  name: string;
+  email: string;
+  rating: number;
+  text: string;
+  avatarUrl: string | null;
+  photoUrls: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  moderatedAt: string | null;
+  moderatedBy: string | null;
+};
+
+export async function fetchAdminGuestReviews(opts?: {
+  status?: string;
+  q?: string;
+}): Promise<AdminGuestReviewRow[]> {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set('status', opts.status);
+  if (opts?.q) params.set('q', opts.q);
+  const qs = params.toString();
+  const res = await adminFetch(`/api/admin/reviews${qs ? `?${qs}` : ''}`);
+  const data = await parseJson<AdminGuestReviewRow[] | { reviews: AdminGuestReviewRow[] }>(res);
+  return asList(data);
+}
+
+export async function patchGuestReviewStatus(
+  id: string,
+  status: 'pending' | 'approved' | 'rejected',
+): Promise<AdminGuestReviewRow> {
+  const res = await adminFetch(`/api/admin/reviews/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  const data = await parseJson<AdminGuestReviewRow | { review: AdminGuestReviewRow }>(res);
+  return asOne(data, 'review');
+}
+
+export function adminGuestReviewsExportUrl(format: 'csv' | 'json-download', opts?: {
+  status?: string;
+  q?: string;
+}): string {
+  const params = new URLSearchParams({ format });
+  if (opts?.status) params.set('status', opts.status);
+  if (opts?.q) params.set('q', opts.q);
+  return `/api/admin/reviews?${params.toString()}`;
+}
+
 export async function patchContactStatus(id: string, status: ContactStatus): Promise<Contact> {
   const res = await adminFetch(`/api/admin/contacts/${id}`, {
     method: 'PATCH',

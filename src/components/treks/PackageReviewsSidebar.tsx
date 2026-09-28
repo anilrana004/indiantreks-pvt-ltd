@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { publicApiFetch } from '@/lib/api/client';
 import {
   loadPackageReviews,
   PACKAGE_REVIEWS_CHANGED_EVENT,
@@ -49,15 +50,76 @@ export default function PackageReviewsSidebar({ packageId, kindLabel, limit = 3 
   const [reviews, setReviews] = useState<PackageReview[]>([]);
 
   useEffect(() => {
-    const refresh = () => {
-      setReviews(reviewsForPackage(loadPackageReviews(), packageId));
+    let cancelled = false;
+
+    const merge = (approved: PackageReview[]) => {
+      const local = reviewsForPackage(loadPackageReviews(), packageId);
+      const byId = new Map<string, PackageReview>();
+      for (const row of approved) byId.set(row.id, row);
+      for (const row of local) {
+        if (!byId.has(row.id)) byId.set(row.id, row);
+      }
+      setReviews([...byId.values()]);
     };
-    refresh();
-    window.addEventListener(PACKAGE_REVIEWS_CHANGED_EVENT, refresh);
-    window.addEventListener('storage', refresh);
+
+    const load = async () => {
+      const local = reviewsForPackage(loadPackageReviews(), packageId);
+      if (!cancelled) setReviews(local);
+      try {
+        const res = await publicApiFetch(
+          `/api/package-reviews?packageId=${encodeURIComponent(packageId)}`,
+          { cache: 'no-store' },
+        );
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as {
+          reviews?: Array<{
+            id: string;
+            packageId: string;
+            packageTitle: string;
+            packageHref: string;
+            packageKind: 'trek' | 'yatra' | 'trip';
+            name: string;
+            rating: number;
+            text: string;
+            avatarUrl: string | null;
+            photoUrls: string[];
+            createdAt: string;
+          }>;
+        };
+        if (cancelled) return;
+        merge(
+          (body.reviews ?? []).map((r) => ({
+            id: r.id,
+            packageId: r.packageId,
+            packageTitle: r.packageTitle,
+            packageHref: r.packageHref,
+            packageKind: r.packageKind,
+            name: r.name,
+            email: '',
+            rating: r.rating,
+            text: r.text,
+            avatar: r.avatarUrl || '',
+            photos: r.photoUrls || [],
+            reviewedAt: r.createdAt,
+            pending: false,
+          })),
+        );
+      } catch {
+        /* local-only fallback already applied */
+      }
+    };
+
+    const onChange = () => {
+      void load();
+    };
+
+    void load();
+    window.addEventListener(PACKAGE_REVIEWS_CHANGED_EVENT, onChange);
+    window.addEventListener('storage', onChange);
     return () => {
-      window.removeEventListener(PACKAGE_REVIEWS_CHANGED_EVENT, refresh);
-      window.removeEventListener('storage', refresh);
+      cancelled = true;
+      window.removeEventListener(PACKAGE_REVIEWS_CHANGED_EVENT, onChange);
+      window.removeEventListener('storage', onChange);
     };
   }, [packageId]);
 

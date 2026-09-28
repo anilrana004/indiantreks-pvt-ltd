@@ -32,6 +32,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^1.27.0",
     "mapbox-gl": "^3.29.0",
+    "mongodb": "^7.6.0",
     "next": "16.2.12",
     "postgres": "^3.4.9",
     "razorpay": "^2.9.8",

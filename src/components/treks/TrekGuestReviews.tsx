@@ -13,6 +13,7 @@ import {
 import type { TrekTestimonial } from '@/lib/content/treks/types';
 import { publicApiFetch, publicApiErrorMessage } from '@/lib/api/client';
 import {
+  assertReviewImageFile,
   loadPackageReviews,
   mirrorToExperienceReviews,
   PACKAGE_REVIEW_LIMITS,
@@ -81,8 +82,10 @@ type FormState = {
   email: string;
   rating: number;
   text: string;
-  avatarData: string;
-  photoData: string[];
+  avatarFile: File | null;
+  avatarPreview: string;
+  photoFiles: File[];
+  photoPreviews: string[];
 };
 
 const emptyForm: FormState = {
@@ -90,8 +93,10 @@ const emptyForm: FormState = {
   email: '',
   rating: 5,
   text: '',
-  avatarData: '',
-  photoData: [],
+  avatarFile: null,
+  avatarPreview: '',
+  photoFiles: [],
+  photoPreviews: [],
 };
 
 export default function TrekGuestReviews({
@@ -104,6 +109,7 @@ export default function TrekGuestReviews({
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [clientReviews, setClientReviews] = useState<PackageReview[]>([]);
+  const [approvedReviews, setApprovedReviews] = useState<PackageReview[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -115,17 +121,86 @@ export default function TrekGuestReviews({
     setClientReviews(reviewsForPackage(loadPackageReviews(), packageId));
   }, [packageId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await publicApiFetch(
+          `/api/package-reviews?packageId=${encodeURIComponent(packageId)}`,
+          { cache: 'no-store' },
+        );
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as {
+          reviews?: Array<{
+            id: string;
+            packageId: string;
+            packageTitle: string;
+            packageHref: string;
+            packageKind: 'trek' | 'yatra' | 'trip';
+            name: string;
+            rating: number;
+            text: string;
+            avatarUrl: string | null;
+            photoUrls: string[];
+            createdAt: string;
+          }>;
+        };
+        if (cancelled) return;
+        setApprovedReviews(
+          (body.reviews ?? []).map((r) => ({
+            id: r.id,
+            packageId: r.packageId,
+            packageTitle: r.packageTitle,
+            packageHref: r.packageHref,
+            packageKind: r.packageKind,
+            name: r.name,
+            email: '',
+            rating: r.rating,
+            text: r.text,
+            avatar: r.avatarUrl || '',
+            photos: r.photoUrls || [],
+            reviewedAt: new Date(r.createdAt).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            }),
+            pending: false,
+          })),
+        );
+      } catch {
+        /* curated + local still work */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId]);
+
   const displayReviews: DisplayReview[] = useMemo(() => {
-    const fromClients: DisplayReview[] = clientReviews.map((r) => ({
+    const pendingLocal = clientReviews.filter((r) => r.pending);
+    const approvedIds = new Set(approvedReviews.map((r) => r.id));
+    const fromApproved: DisplayReview[] = approvedReviews.map((r) => ({
       id: r.id,
       name: r.name,
-      subtitle: r.pending ? `${packageTitle} · Pending` : packageTitle,
+      subtitle: packageTitle,
       text: r.text,
       rating: r.rating,
       avatar: r.avatar || undefined,
       photos: r.photos,
-      pending: r.pending,
+      pending: false,
     }));
+    const fromPending: DisplayReview[] = pendingLocal
+      .filter((r) => !approvedIds.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        subtitle: `${packageTitle} · Pending`,
+        text: r.text,
+        rating: r.rating,
+        avatar: r.avatar || undefined,
+        photos: r.photos,
+        pending: true,
+      }));
     const fromCurated: DisplayReview[] = curated.map((t, i) => ({
       id: `curated-${i}-${t.name}`,
       name: t.name,
@@ -135,39 +210,48 @@ export default function TrekGuestReviews({
       platform: t.platform,
       verifyUrl: t.verifyUrl,
     }));
-    return [...fromClients, ...fromCurated];
-  }, [clientReviews, curated, packageTitle]);
+    return [...fromPending, ...fromApproved, ...fromCurated];
+  }, [approvedReviews, clientReviews, curated, packageTitle]);
 
   const onAvatar = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     try {
-      const data = await readFileAsDataUrl(file);
-      setForm((prev) => ({ ...prev, avatarData: data }));
+      assertReviewImageFile(file);
+      const preview = await readFileAsDataUrl(file);
+      setForm((prev) => ({ ...prev, avatarFile: file, avatarPreview: preview }));
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not read avatar.');
     }
   }, []);
 
-  const onPhotos = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
-    if (!files.length) return;
-    try {
-      const remaining = PACKAGE_REVIEW_LIMITS.maxPhotos - form.photoData.length;
-      const slice = files.slice(0, remaining);
-      const dataUrls = await Promise.all(slice.map(readFileAsDataUrl));
-      setForm((prev) => ({
-        ...prev,
-        photoData: [...prev.photoData, ...dataUrls].slice(0, PACKAGE_REVIEW_LIMITS.maxPhotos),
-      }));
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not read photos.');
-    }
-  }, [form.photoData.length]);
+  const onPhotos = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files ?? []);
+      e.target.value = '';
+      if (!files.length) return;
+      try {
+        const remaining = PACKAGE_REVIEW_LIMITS.maxPhotos - form.photoFiles.length;
+        const slice = files.slice(0, remaining);
+        for (const file of slice) assertReviewImageFile(file);
+        const previews = await Promise.all(slice.map(readFileAsDataUrl));
+        setForm((prev) => ({
+          ...prev,
+          photoFiles: [...prev.photoFiles, ...slice].slice(0, PACKAGE_REVIEW_LIMITS.maxPhotos),
+          photoPreviews: [...prev.photoPreviews, ...previews].slice(
+            0,
+            PACKAGE_REVIEW_LIMITS.maxPhotos,
+          ),
+        }));
+        setError('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not read photos.');
+      }
+    },
+    [form.photoFiles.length],
+  );
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -193,63 +277,74 @@ export default function TrekGuestReviews({
 
     setSending(true);
 
-    const avatar = form.avatarData;
-    const photos = [...form.photoData];
-
     try {
+      const body = new FormData();
+      body.set('name', name);
+      body.set('email', email);
+      body.set('rating', String(form.rating));
+      body.set('text', text);
+      body.set('packageId', packageId);
+      body.set('packageTitle', packageTitle);
+      body.set('packageHref', packageHref);
+      body.set('packageKind', packageKind);
+      if (form.avatarFile) body.set('avatar', form.avatarFile);
+      for (const photo of form.photoFiles) body.append('photos', photo);
+
       const res = await publicApiFetch('/api/package-reviews', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          email,
-          rating: form.rating,
-          text,
-          packageId,
-          packageTitle,
-          packageHref,
-          packageKind,
-          photoCount: form.photoData.length,
-          hasAvatar: Boolean(form.avatarData),
-        }),
+        body,
       });
+
       if (!res.ok) {
-        console.warn(await publicApiErrorMessage(res));
+        throw new Error(await publicApiErrorMessage(res));
       }
-    } catch {
-      /* keep local publish path */
+
+      const payload = (await res.json()) as {
+        review?: {
+          id: string;
+          avatarUrl: string | null;
+          photoUrls: string[];
+          createdAt: string;
+        };
+      };
+
+      const review: PackageReview = {
+        id: payload.review?.id || `pkg-${packageId}-${Date.now()}`,
+        packageId,
+        packageTitle,
+        packageHref,
+        packageKind,
+        name,
+        email,
+        rating: form.rating,
+        text,
+        avatar:
+          payload.review?.avatarUrl ||
+          form.avatarPreview ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        photos: payload.review?.photoUrls?.length
+          ? payload.review.photoUrls
+          : [...form.photoPreviews],
+        reviewedAt: new Date().toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }),
+        pending: true,
+      };
+
+      const all = [review, ...loadPackageReviews().filter((r) => r.id !== review.id)];
+      savePackageReviews(all);
+      mirrorToExperienceReviews(review);
+      setClientReviews(reviewsForPackage(all, packageId));
+      setForm(emptyForm);
+      setSent(true);
+      setFormOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not publish review right now.');
+    } finally {
+      setSending(false);
     }
-
-    const review: PackageReview = {
-      id: `pkg-${packageId}-${Date.now()}`,
-      packageId,
-      packageTitle,
-      packageHref,
-      packageKind,
-      name,
-      email,
-      rating: form.rating,
-      text,
-      avatar:
-        avatar ||
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-      photos,
-      reviewedAt: new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }),
-      pending: true,
-    };
-
-    const all = [review, ...loadPackageReviews().filter((r) => r.id !== review.id)];
-    savePackageReviews(all);
-    mirrorToExperienceReviews(review);
-    setClientReviews(reviewsForPackage(all, packageId));
-    setForm(emptyForm);
-    setSent(true);
-    setSending(false);
-    setFormOpen(false);
   }
 
   return (
@@ -287,20 +382,15 @@ export default function TrekGuestReviews({
                     <span>{t.subtitle}</span>
                   </div>
                 </div>
-                {t.platform === 'google' ? (
-                  <span className="kg-testi-badge kg-testi-badge-logo" aria-label="Google review">
-                    <GoogleLogoIcon />
-                  </span>
-                ) : null}
-              </div>
-              <div className="kg-testi-stars" aria-label={`${t.rating} out of 5 stars`}>
-                {[0, 1, 2, 3, 4].map((s) => (
-                  <i
-                    className={s < t.rating ? 'fa-solid fa-star' : 'fa-regular fa-star'}
-                    key={s}
-                    aria-hidden
-                  />
-                ))}
+                <div className="kg-testi-stars" aria-label={`${t.rating} out of 5 stars`}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <i
+                      className={`fa-solid fa-star${s <= t.rating ? '' : ' is-off'}`}
+                      key={s}
+                      aria-hidden
+                    />
+                  ))}
+                </div>
               </div>
               <div>
                 <p>{t.text}</p>
@@ -384,7 +474,7 @@ export default function TrekGuestReviews({
 
           {sent ? (
             <p className="kg-review-success" role="status">
-              Thanks — your review is live on this page and pending our team moderation.
+              Thanks — your review is saved with photos on Cloudinary and queued for team moderation.
             </p>
           ) : null}
 
@@ -454,9 +544,9 @@ export default function TrekGuestReviews({
                   </span>
                   <span className="kg-review-upload-hint">Optional · under 900 KB</span>
                   <input type="file" accept="image/*" onChange={onAvatar} />
-                  {form.avatarData ? (
+                  {form.avatarPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img className="kg-review-upload-preview" src={form.avatarData} alt="" />
+                    <img className="kg-review-upload-preview" src={form.avatarPreview} alt="" />
                   ) : (
                     <span className="kg-review-upload-empty">Choose photo</span>
                   )}
@@ -470,9 +560,9 @@ export default function TrekGuestReviews({
                     Up to {PACKAGE_REVIEW_LIMITS.maxPhotos} images · under 900 KB each
                   </span>
                   <input type="file" accept="image/*" multiple onChange={onPhotos} />
-                  {form.photoData.length > 0 ? (
+                  {form.photoPreviews.length > 0 ? (
                     <div className="kg-review-upload-thumbs">
-                      {form.photoData.map((src, i) => (
+                      {form.photoPreviews.map((src, i) => (
                         <span key={`up-${i}`} className="kg-review-thumb">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={src} alt="" />
@@ -483,7 +573,8 @@ export default function TrekGuestReviews({
                               ev.preventDefault();
                               setForm((p) => ({
                                 ...p,
-                                photoData: p.photoData.filter((_, idx) => idx !== i),
+                                photoFiles: p.photoFiles.filter((_, idx) => idx !== i),
+                                photoPreviews: p.photoPreviews.filter((_, idx) => idx !== i),
                               }));
                             }}
                           >
@@ -517,8 +608,8 @@ export default function TrekGuestReviews({
                   )}
                 </button>
                 <p className="kg-review-note">
-                  Reviews appear on this {kindLabel.toLowerCase()} page immediately and are flagged for
-                  team moderation.
+                  Photos upload to Cloudinary. Reviews are saved for the team and shown after
+                  moderation.
                 </p>
               </div>
             </form>

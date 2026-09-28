@@ -175,6 +175,20 @@ function main() {
       : 'Cloudinary incomplete — admin image upload may fail',
   });
 
+  const mongoOk = Boolean(
+    process.env.MONGODB_URI?.trim() ||
+      process.env.MONGO_URI?.trim() ||
+      process.env.MONGODB_URL?.trim(),
+  );
+  results.push({
+    name: 'mongodb_reviews',
+    ok: true,
+    level: 'warn',
+    detail: mongoOk
+      ? 'MONGODB_URI set — guest reviews can persist'
+      : 'MONGODB_URI unset — trek/yatra/trip review submit will return 503',
+  });
+
   results.push({
     name: 'analytics_scaffold',
     ok: true,
