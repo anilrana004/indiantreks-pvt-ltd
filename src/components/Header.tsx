@@ -431,7 +431,7 @@ export default function Header() {
             className="relative z-20 flex h-full shrink-0 items-center bg-white px-3 shadow-[4px_0_12px_rgba(0,0,0,0.12)] xl:px-4"
             aria-label="Indian Treks home"
           >
-            <BrandLogo className="h-6 w-auto max-w-[124px] object-contain object-left xl:h-7 xl:max-w-[148px] min-[1760px]:max-w-[168px]" />
+            <BrandLogo className="h-8 w-auto max-w-[148px] object-contain object-left xl:h-9 xl:max-w-[168px]" />
           </Link>
 
           {/*
@@ -556,7 +556,7 @@ export default function Header() {
       >
         <div className="flex h-14 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => { if (isOpen) setIsOpen(false); }}>
-            <BrandLogo className="h-7 w-auto max-w-[156px] object-contain object-left" />
+            <BrandLogo className="h-9 w-auto max-w-[168px] object-contain object-left" />
           </Link>
           <div className="flex items-center gap-1">
             <button

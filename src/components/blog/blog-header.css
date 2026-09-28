@@ -40,9 +40,9 @@
 
 .it-blog-nav__logo {
   display: block;
-  height: 30px;
+  height: 36px;
   width: auto;
-  max-width: 150px;
+  max-width: 168px;
   object-fit: contain;
   object-position: left center;
 }
@@ -441,8 +441,8 @@
   }
 
   .it-blog-nav__logo {
-    height: 26px;
-    max-width: 128px;
+    height: 32px;
+    max-width: 148px;
   }
 
   .it-blog-nav__tools {

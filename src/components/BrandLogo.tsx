@@ -14,9 +14,9 @@ export default function BrandLogo({
   return (
     <img
       src={LOGO_SRC}
-      alt="IndianTreks - Offbeat & Active Travel Specialists Since 2015"
-      width={192}
-      height={36}
+      alt="IndianTreks — India's Trusted Trekking Partner Since 2015"
+      width={177}
+      height={40}
       className={className}
       decoding="async"
       fetchPriority="high"

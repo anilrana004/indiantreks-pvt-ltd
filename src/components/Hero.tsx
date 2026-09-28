@@ -226,7 +226,7 @@ export default function Hero() {
         }}
       >
         <Link href="/" className="flex items-center">
-          <BrandLogo className="h-7 w-auto max-w-[156px] object-contain object-left" />
+          <BrandLogo className="h-9 w-auto max-w-[168px] object-contain object-left" />
         </Link>
         <div className="flex items-center gap-1">
           <a

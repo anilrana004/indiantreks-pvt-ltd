@@ -54,6 +54,21 @@ function loadRazorpayScript(): Promise<void> {
   });
 }
 
+/**
+ * Native Standard Checkout layout (method icons + UPI QR / Show QR panel).
+ * Custom `blocks` force the simpler “Recommended” list UI — avoid them.
+ */
+function checkoutDisplayConfig() {
+  return {
+    display: {
+      sequence: ['upi', 'card', 'emi', 'netbanking', 'wallet', 'paylater'],
+      preferences: {
+        show_default_blocks: true,
+      },
+    },
+  };
+}
+
 /** Opens official Razorpay Standard Checkout — do not recreate their UI. */
 export async function openRazorpayCheckout(
   order: RazorpayCheckoutOrder,
@@ -73,9 +88,13 @@ export async function openRazorpayCheckout(
     description: order.description,
     image: order.image,
     order_id: order.razorpayOrderId,
-    prefill: order.prefill,
+    prefill: {
+      ...order.prefill,
+      method: 'upi',
+    },
     notes: order.notes,
     theme: order.theme,
+    config: checkoutDisplayConfig(),
     handler: (response: RazorpaySuccessResponse) => {
       void handlers.onSuccess(response);
     },

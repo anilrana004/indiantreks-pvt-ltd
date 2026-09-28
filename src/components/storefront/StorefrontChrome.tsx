@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import LeadCapturePopup from '@/components/LeadCapturePopup';
 import JsonLd from '@/components/seo/JsonLd';
 import { buildOrganizationJsonLd, buildWebSiteJsonLd } from '@/lib/seo/json-ld';
 
@@ -34,6 +35,7 @@ export default function StorefrontChrome({ children }: { children: React.ReactNo
       <Footer />
       <WhatsAppFloat />
       <MobileBottomNav />
+      <LeadCapturePopup />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import Razorpay from 'razorpay';
+import { RAZORPAY_LOGO_URL } from '@/lib/brand-assets';
 
 export type RazorpayMode = 'test' | 'live';
 
@@ -110,11 +111,16 @@ export function getMerchantDisplayName(): string {
 }
 
 export function getCheckoutThemeColor(): string {
-  return process.env.RAZORPAY_THEME_COLOR?.trim() || '#16a34a';
+  // Punchy brand green for Razorpay sidebar (brighter than storefront --ih-primary).
+  return process.env.RAZORPAY_THEME_COLOR?.trim() || '#00c853';
 }
 
-export function getCheckoutLogoUrl(): string | undefined {
-  const logo = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-  if (!logo) return undefined;
-  return `${logo}/logo.png`;
+/**
+ * Logo shown in the Razorpay Checkout header.
+ * Defaults to the dedicated checkout mark; override with RAZORPAY_CHECKOUT_LOGO_URL.
+ */
+export function getCheckoutLogoUrl(): string {
+  const override = process.env.RAZORPAY_CHECKOUT_LOGO_URL?.trim();
+  if (override) return override;
+  return RAZORPAY_LOGO_URL;
 }
