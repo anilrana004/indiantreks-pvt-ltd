@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { cldUrl } from '@/lib/cloudinary';
 
 /**
  * UI/UX from https://indiantreks.in/about-us/ — “Our Apprecition Letter”:
@@ -10,15 +11,24 @@ import { useEffect, useState } from 'react';
 
 const LETTERS = [
   {
-    src: 'https://indiantreks.in/wp-content/uploads/2023/01/Appriciation-Letter-Indian-Treaks-1-1.jpg',
+    src: cldUrl(
+      'https://indiantreks.in/wp-content/uploads/2023/01/Appriciation-Letter-Indian-Treaks-1-1.jpg',
+      { w: 1200, crop: 'fit', quality: 'auto' },
+    ),
     alt: 'Appreciation letter from Doon University to Indian Treks',
   },
   {
-    src: 'https://indiantreks.in/wp-content/uploads/2023/01/1674876430957_certificate.jpg',
+    src: cldUrl(
+      'https://indiantreks.in/wp-content/uploads/2023/01/1674876430957_certificate.jpg',
+      { w: 1200, crop: 'fit', quality: 'auto' },
+    ),
     alt: 'Certificate of appreciation for Indian Treks',
   },
   {
-    src: 'https://indiantreks.in/wp-content/uploads/2023/01/IMG-20230124-WA0010.jpg',
+    src: cldUrl(
+      'https://indiantreks.in/wp-content/uploads/2023/01/IMG-20230124-WA0010.jpg',
+      { w: 1200, crop: 'fit', quality: 'auto' },
+    ),
     alt: 'Official recognition letter for Indian Treks',
   },
 ] as const;

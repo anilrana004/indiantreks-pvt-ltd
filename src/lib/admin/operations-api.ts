@@ -157,10 +157,22 @@ export async function deleteAdminSubscriber(id: string): Promise<void> {
   if (!res.ok) await parseJson(res);
 }
 
-export async function fetchAdminUsers(): Promise<SiteUser[]> {
-  const res = await adminFetch('/api/admin/users');
+export async function fetchAdminUsers(opts?: { q?: string }): Promise<SiteUser[]> {
+  const params = new URLSearchParams();
+  if (opts?.q) params.set('q', opts.q);
+  const qs = params.toString();
+  const res = await adminFetch(`/api/admin/users${qs ? `?${qs}` : ''}`);
   const data = await parseJson<SiteUser[] | { users: SiteUser[] }>(res);
   return asList(data);
+}
+
+export function adminUsersExportUrl(
+  format: 'csv' | 'json-download',
+  opts?: { q?: string },
+): string {
+  const params = new URLSearchParams({ format });
+  if (opts?.q) params.set('q', opts.q);
+  return `/api/admin/users?${params.toString()}`;
 }
 
 type DashboardPayload =

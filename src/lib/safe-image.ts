@@ -17,7 +17,7 @@ const byId: Record<string, string> = {
   'mcleodganj-trek': photos.triund,
   'chopta-tungnath': photos.chopta,
   'badrinath-yatra': photos.yatra,
-  'dayara-bugyal': photos.uttarakhand,
+  'dayara-bugyal': photos.dayara,
   'har-ki-dun': photos.uttarakhand,
   'kuari-pass': photos.uttarakhand,
   'nag-tibba': photos.uttarakhand,

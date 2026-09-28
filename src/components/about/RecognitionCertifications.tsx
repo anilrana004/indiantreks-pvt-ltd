@@ -3,22 +3,40 @@
  * Layout kept from existing about cert section.
  */
 
+import { cldUrl } from '@/lib/cloudinary';
+
 const CERTS = [
   {
     name: 'Uttarakhand Tourism Development Board',
-    img: 'https://indiantreks.in/wp-content/uploads/2023/01/UK-Turism-1.jpg',
+    img: cldUrl('https://indiantreks.in/wp-content/uploads/2023/01/UK-Turism-1.jpg', {
+      w: 800,
+      crop: 'fit',
+      quality: 'auto',
+    }),
   },
   {
     name: 'MSME / Udyam',
-    img: 'https://indiantreks.in/wp-content/uploads/2023/01/Udhyam-1.jpg',
+    img: cldUrl('https://indiantreks.in/wp-content/uploads/2023/01/Udhyam-1.jpg', {
+      w: 800,
+      crop: 'fit',
+      quality: 'auto',
+    }),
   },
   {
     name: 'Tourism Association',
-    img: 'https://indiantreks.in/wp-content/uploads/2023/01/Turism-2nd-1.jpg',
+    img: cldUrl('https://indiantreks.in/wp-content/uploads/2023/01/Turism-2nd-1.jpg', {
+      w: 800,
+      crop: 'fit',
+      quality: 'auto',
+    }),
   },
   {
     name: 'ATOAI',
-    img: 'https://roopkundheaven.in/wp-content/uploads/2026/07/cert-4.jpg',
+    img: cldUrl('https://roopkundheaven.in/wp-content/uploads/2026/07/cert-4.jpg', {
+      w: 800,
+      crop: 'fit',
+      quality: 'auto',
+    }),
   },
 ] as const;
 

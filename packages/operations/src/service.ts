@@ -78,14 +78,31 @@ function toSubscriber(row: typeof newsletterSubscribers.$inferSelect): Newslette
 }
 
 function toSiteUser(row: typeof siteUsers.$inferSelect): SiteUser {
+  const hasGoogle = Boolean(row.googleSub);
+  const hasPassword = Boolean(row.passwordHash);
+  const authProvider: SiteUser['authProvider'] =
+    hasGoogle && hasPassword ? 'both' : hasGoogle ? 'google' : hasPassword ? 'password' : 'unknown';
   return {
     id: row.id,
     name: row.name,
+    firstName: row.firstName ?? undefined,
+    lastName: row.lastName ?? undefined,
     email: row.email,
     phone: row.phone ?? undefined,
+    phoneCountryCode: row.phoneCountryCode ?? undefined,
+    dateOfBirth: row.dateOfBirth ?? undefined,
+    gender: row.gender ?? undefined,
+    nationality: row.nationality ?? undefined,
     role: row.role as SiteUser['role'],
     bookings: row.bookingsCount,
-    createdAt: row.createdAt.toISOString().slice(0, 10),
+    emailVerified: row.emailVerified,
+    avatarUrl: row.avatarUrl ?? undefined,
+    authProvider,
+    hasGoogle,
+    hasPassword,
+    lastLoginAt: null,
+    updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 

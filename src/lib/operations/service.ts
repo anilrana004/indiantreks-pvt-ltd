@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray, or, ilike } from 'drizzle-orm';
 import { getDb, schema } from '@/lib/db';
 import type {
   Booking,
@@ -14,7 +14,7 @@ import type {
   SiteUser,
 } from '@/lib/operations/types';
 
-const { bookings, contacts, giftCards, newsletterSubscribers, siteUsers } = schema;
+const { bookings, contacts, giftCards, newsletterSubscribers, siteUsers, authAuditEvents } = schema;
 
 function requireDb() {
   const db = getDb();
@@ -90,15 +90,42 @@ function toSubscriber(row: typeof newsletterSubscribers.$inferSelect): Newslette
   };
 }
 
-function toSiteUser(row: typeof siteUsers.$inferSelect): SiteUser {
+function authProviderFor(row: typeof siteUsers.$inferSelect): SiteUser['authProvider'] {
+  const hasGoogle = Boolean(row.googleSub);
+  const hasPassword = Boolean(row.passwordHash);
+  if (hasGoogle && hasPassword) return 'both';
+  if (hasGoogle) return 'google';
+  if (hasPassword) return 'password';
+  return 'unknown';
+}
+
+function toSiteUser(
+  row: typeof siteUsers.$inferSelect,
+  lastLoginAt: string | null = null,
+): SiteUser {
+  const hasGoogle = Boolean(row.googleSub);
+  const hasPassword = Boolean(row.passwordHash);
   return {
     id: row.id,
     name: row.name,
+    firstName: row.firstName ?? undefined,
+    lastName: row.lastName ?? undefined,
     email: row.email,
     phone: row.phone ?? undefined,
+    phoneCountryCode: row.phoneCountryCode ?? undefined,
+    dateOfBirth: row.dateOfBirth ?? undefined,
+    gender: row.gender ?? undefined,
+    nationality: row.nationality ?? undefined,
     role: row.role as SiteUser['role'],
     bookings: row.bookingsCount,
-    createdAt: row.createdAt.toISOString().slice(0, 10),
+    emailVerified: row.emailVerified,
+    avatarUrl: row.avatarUrl ?? undefined,
+    authProvider: authProviderFor(row),
+    hasGoogle,
+    hasPassword,
+    lastLoginAt,
+    updatedAt: row.updatedAt?.toISOString?.() ?? undefined,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -232,9 +259,100 @@ export async function removeSubscriber(id: string): Promise<boolean> {
   return result.length > 0;
 }
 
-export async function listSiteUsers(): Promise<SiteUser[]> {
-  const rows = await requireDb().select().from(siteUsers).orderBy(desc(siteUsers.createdAt));
-  return rows.map(toSiteUser);
+export async function listSiteUsers(opts?: { search?: string }): Promise<SiteUser[]> {
+  const db = requireDb();
+  const search = opts?.search?.trim();
+
+  const rows = search
+    ? await db
+        .select()
+        .from(siteUsers)
+        .where(
+          or(
+            ilike(siteUsers.name, `%${search}%`),
+            ilike(siteUsers.email, `%${search}%`),
+            ilike(siteUsers.phone, `%${search}%`),
+            ilike(siteUsers.firstName, `%${search}%`),
+            ilike(siteUsers.lastName, `%${search}%`),
+          ),
+        )
+        .orderBy(desc(siteUsers.createdAt))
+    : await db.select().from(siteUsers).orderBy(desc(siteUsers.createdAt));
+
+  const loginEvents = await db
+    .select({
+      userId: authAuditEvents.userId,
+      createdAt: authAuditEvents.createdAt,
+    })
+    .from(authAuditEvents)
+    .where(inArray(authAuditEvents.event, ['login_success', 'google_login_success']))
+    .orderBy(desc(authAuditEvents.createdAt));
+
+  const lastLoginByUser = new Map<string, string>();
+  for (const event of loginEvents) {
+    if (!event.userId || lastLoginByUser.has(event.userId)) continue;
+    lastLoginByUser.set(event.userId, event.createdAt.toISOString());
+  }
+
+  return rows.map((row) => toSiteUser(row, lastLoginByUser.get(row.id) ?? null));
+}
+
+export function siteUsersToCsv(rows: SiteUser[]): string {
+  const headers = [
+    'id',
+    'name',
+    'firstName',
+    'lastName',
+    'email',
+    'phoneCountryCode',
+    'phone',
+    'dateOfBirth',
+    'gender',
+    'nationality',
+    'role',
+    'authProvider',
+    'emailVerified',
+    'bookings',
+    'avatarUrl',
+    'lastLoginAt',
+    'createdAt',
+    'updatedAt',
+  ];
+
+  const escape = (value: unknown) => {
+    const raw = value == null ? '' : String(value);
+    if (/[",\n\r]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
+    return raw;
+  };
+
+  const lines = [headers.join(',')];
+  for (const row of rows) {
+    lines.push(
+      [
+        row.id,
+        row.name,
+        row.firstName ?? '',
+        row.lastName ?? '',
+        row.email,
+        row.phoneCountryCode ?? '',
+        row.phone ?? '',
+        row.dateOfBirth ?? '',
+        row.gender ?? '',
+        row.nationality ?? '',
+        row.role,
+        row.authProvider,
+        row.emailVerified,
+        row.bookings,
+        row.avatarUrl ?? '',
+        row.lastLoginAt ?? '',
+        row.createdAt,
+        row.updatedAt ?? '',
+      ]
+        .map(escape)
+        .join(','),
+    );
+  }
+  return lines.join('\n');
 }
 
 export function generateGiftCardCode(): string {

@@ -6,11 +6,16 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "",
   },
   images: {
+    // Prefer AVIF, fall back to WebP for smaller payloads vs JPEG/PNG.
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "storage.googleapis.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "https", hostname: "indiantreks.in" },
+      { protocol: "https", hostname: "roopkundheaven.in" },
+      { protocol: "https", hostname: "i.ytimg.com" },
     ],
   },
   async redirects() {

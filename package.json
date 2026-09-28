@@ -25,7 +25,8 @@
     "verify:production": "tsx scripts/verify-production.ts",
     "auth:smoke": "tsx scripts/smoke-customer-auth.ts",
     "auth:backup": "tsx scripts/backup-customer-auth.ts",
-    "payments:smoke": "tsx scripts/smoke-payments.ts"
+    "payments:smoke": "tsx scripts/smoke-payments.ts",
+    "images:webp": "node scripts/compress-images-webp.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

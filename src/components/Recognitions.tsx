@@ -21,7 +21,7 @@ function RecognitionLogo({ name, img }: { name: string; img: string }) {
       alt={name}
       width={160}
       height={48}
-      unoptimized={img.endsWith('.svg') || img.endsWith('.png')}
+      unoptimized={img.endsWith('.svg')}
       className="h-9 w-auto max-w-[9rem] object-contain opacity-95 transition-all duration-300 group-hover:scale-[1.03] group-hover:opacity-100 lg:h-11 lg:max-w-[10.5rem]"
       onError={() => setBroken(true)}
     />

@@ -38,7 +38,7 @@ const navGroups: NavGroup[] = [
       { label: 'Bookings', href: `${ADMIN_PREFIX}/bookings`, icon: CalendarCheck },
       { label: 'Reviews', href: `${ADMIN_PREFIX}/reviews`, icon: Star },
       { label: 'Contacts', href: `${ADMIN_PREFIX}/contacts`, icon: MessageSquare },
-      { label: 'Users', href: `${ADMIN_PREFIX}/users`, icon: Users },
+      { label: 'Customer Logins', href: `${ADMIN_PREFIX}/users`, icon: Users },
     ],
   },
   {
@@ -66,7 +66,7 @@ function pageTitle(path: string): string {
     bookings: 'Bookings',
     reviews: 'Guest Reviews',
     contacts: 'Contacts',
-    users: 'Users',
+    users: 'Customer Logins',
     newsletter: 'Newsletter',
     'gift-cards': 'Gift Cards',
   };

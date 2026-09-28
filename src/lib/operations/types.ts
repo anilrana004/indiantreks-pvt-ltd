@@ -104,10 +104,24 @@ export type NewsletterSubscriber = {
 export type SiteUser = {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone?: string;
+  phoneCountryCode?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  nationality?: string;
   role: 'admin' | 'user';
   bookings: number;
+  emailVerified: boolean;
+  avatarUrl?: string;
+  /** How the customer signs in */
+  authProvider: 'google' | 'password' | 'both' | 'unknown';
+  hasGoogle: boolean;
+  hasPassword: boolean;
+  lastLoginAt?: string | null;
+  updatedAt?: string;
   createdAt: string;
 };
 
