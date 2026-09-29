@@ -65,7 +65,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
 
   const user = await getCurrentUser();
   if (!user) {
-    throw Object.assign(new Error('Authentication required'), { status: 401 });
+    throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
   }
 
   // Opportunistic hold cleanup (non-blocking for correctness — also checked on pay)
@@ -239,6 +239,11 @@ function isTrustedCheckoutBooking(booking: NonNullable<Awaited<ReturnType<typeof
 }
 
 export async function assertBookingPayable(bookingId: string, checkoutToken: string) {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
+  }
+
   const booking = await loadBooking(bookingId);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
 
@@ -246,16 +251,24 @@ export async function assertBookingPayable(bookingId: string, checkoutToken: str
     throw Object.assign(new Error('Booking is not eligible for payment'), { status: 403 });
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
-    throw Object.assign(new Error('Authentication required'), { status: 401 });
+  // Ownership is Principal-style: authenticated user id only (never email).
+  if (booking.userId !== user.id) {
+    logPayment('authorization_denied', {
+      bookingId: booking.id,
+      userId: user.id,
+      reason: 'not_owner',
+    });
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
   }
 
   const tokenOk = verifyCheckoutToken(checkoutToken, booking.checkoutTokenHash);
-  const ownerOk =
-    user.id === booking.userId || user.email.toLowerCase() === booking.email.toLowerCase();
-  if (!tokenOk || !ownerOk) {
-    throw Object.assign(new Error('Unauthorized'), { status: 403 });
+  if (!tokenOk) {
+    logPayment('authorization_denied', {
+      bookingId: booking.id,
+      userId: user.id,
+      reason: 'invalid_checkout_token',
+    });
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
   }
 
   if (booking.status === 'confirmed' || booking.paymentStatus === 'paid') {
@@ -636,6 +649,11 @@ export async function verifyAndConfirmPayment(input: {
   razorpayPaymentId: string;
   razorpaySignature: string;
 }) {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
+  }
+
   const bookingRow = await loadBooking(input.bookingId);
   if (!bookingRow) throw Object.assign(new Error('Booking not found'), { status: 404 });
 
@@ -643,15 +661,23 @@ export async function verifyAndConfirmPayment(input: {
     throw Object.assign(new Error('Booking is not eligible for payment'), { status: 403 });
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
-    throw Object.assign(new Error('Authentication required'), { status: 401 });
+  if (bookingRow.userId !== user.id) {
+    logPayment('authorization_denied', {
+      bookingId: bookingRow.id,
+      userId: user.id,
+      reason: 'not_owner',
+    });
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
   }
+
   const tokenOk = verifyCheckoutToken(input.checkoutToken, bookingRow.checkoutTokenHash);
-  const ownerOk =
-    user.id === bookingRow.userId || user.email.toLowerCase() === bookingRow.email.toLowerCase();
-  if (!tokenOk || !ownerOk) {
-    throw Object.assign(new Error('Unauthorized'), { status: 403 });
+  if (!tokenOk) {
+    logPayment('authorization_denied', {
+      bookingId: bookingRow.id,
+      userId: user.id,
+      reason: 'invalid_checkout_token',
+    });
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
   }
 
   const db = requireDb();
@@ -879,7 +905,8 @@ export async function getBookingPublicSummary(bookingId: string, checkoutToken: 
   if (!booking) return null;
   const user = await getCurrentUser();
   const tokenOk = verifyCheckoutToken(checkoutToken, booking.checkoutTokenHash);
-  const ownerOk = Boolean(user && (user.id === booking.userId || user.email.toLowerCase() === booking.email.toLowerCase()));
+  const ownerOk = Boolean(user && user.id === booking.userId);
+  // Capability token OR authenticated owner — never email match.
   if (!tokenOk && !ownerOk) return null;
 
   const [tx] = await requireDb()

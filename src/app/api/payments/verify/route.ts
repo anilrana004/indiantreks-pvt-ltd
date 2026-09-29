@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { isRazorpayConfigured } from '@/lib/payments/razorpay';
-import { clientIp, consumePaymentRateLimit } from '@/lib/payments/rate-limit';
 import { verifyAndConfirmPayment } from '@/lib/payments/service';
-import { rateLimitedResponse } from '@/lib/security/rate-limit';
+import {
+  PAYMENT_VERIFY_USER_LIMIT,
+  PROTECTED_MUTATION_IP_ABUSE_LIMIT,
+  checkIpAbuseLimit,
+  checkUserRateLimit,
+  clientIp,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
+import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
 
 export const runtime = 'nodejs';
 
@@ -14,8 +21,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Razorpay is not configured' }, { status: 503 });
   }
 
-  const ip = clientIp(req);
-  const limited = await consumePaymentRateLimit('payment.verify', ip, 30, 60_000);
+  const abuse = await checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req));
+  if (!abuse.allowed) {
+    return rateLimitedResponse(abuse.retryAfterSec);
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    console.info(
+      JSON.stringify({
+        scope: 'payments.verify',
+        event: 'auth_required',
+        ip: clientIp(req),
+      }),
+    );
+    return unauthorizedUserResponse();
+  }
+
+  const limited = await checkUserRateLimit(PAYMENT_VERIFY_USER_LIMIT, user.id);
   if (!limited.allowed) {
     return rateLimitedResponse(limited.retryAfterSec);
   }
@@ -36,6 +59,12 @@ export async function POST(req: NextRequest) {
       typeof err === 'object' && err && 'status' in err
         ? Number((err as { status: number }).status)
         : 400;
-    return NextResponse.json({ error: message }, { status: Number.isFinite(status) ? status : 400 });
+    return NextResponse.json(
+      {
+        error: status === 401 ? 'Please sign in to continue.' : message,
+        code: status === 401 ? 'AUTH_REQUIRED' : undefined,
+      },
+      { status: Number.isFinite(status) ? status : 400 },
+    );
   }
 }

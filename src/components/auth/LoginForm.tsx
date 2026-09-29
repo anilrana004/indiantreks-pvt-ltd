@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import AuthShell from '@/components/auth/AuthShell';
 import { USER_TOKEN_STORAGE_KEY } from '@/lib/user-auth/constants';
+import { DEFAULT_SAFE_RETURN_PATH, safeReturnPath } from '@/lib/security/urls';
 
 const ERROR_MESSAGES: Record<string, string> = {
   google_denied: 'Google sign-in was cancelled.',
@@ -28,13 +29,14 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
   const [googleRedirectUri, setGoogleRedirectUri] = useState('');
-  const [returnTo, setReturnTo] = useState('/user-dashboard');
+  const [returnTo, setReturnTo] = useState(DEFAULT_SAFE_RETURN_PATH);
   const [resetNotice, setResetNotice] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const from = params.get('from') || params.get('returnTo');
-    if (from && from.startsWith('/')) setReturnTo(from);
+    const safeFrom = safeReturnPath(from);
+    setReturnTo(safeFrom);
     const err = params.get('error');
     if (err && ERROR_MESSAGES[err]) setError(ERROR_MESSAGES[err]);
     if (params.get('reset') === '1') setResetNotice(true);
@@ -42,7 +44,7 @@ export default function LoginForm() {
     fetch('/api/user/auth/me', { credentials: 'include' })
       .then(async (res) => {
         if (res.ok) {
-          router.replace(from && from.startsWith('/') ? from : '/user-dashboard');
+          router.replace(safeFrom);
           return;
         }
       })
@@ -103,7 +105,14 @@ export default function LoginForm() {
       footer={
         <>
           New to Indian Treks?{' '}
-          <Link href="/signup" className="font-semibold text-[#16a34a] hover:text-[#15803d]">
+          <Link
+            href={
+              returnTo !== DEFAULT_SAFE_RETURN_PATH
+                ? `/signup?from=${encodeURIComponent(returnTo)}`
+                : '/signup'
+            }
+            className="font-semibold text-[#16a34a] hover:text-[#15803d]"
+          >
             Register here
           </Link>
         </>

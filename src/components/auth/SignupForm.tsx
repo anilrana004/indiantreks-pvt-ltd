@@ -12,6 +12,7 @@ import {
   PHONE_COUNTRY_OPTIONS,
 } from '@/lib/user-auth/register-options';
 import { formatDobInput } from '@/lib/user-auth/validation';
+import { DEFAULT_SAFE_RETURN_PATH, safeReturnPath } from '@/lib/security/urls';
 
 const inputClass =
   'w-full rounded border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#16a34a] focus:ring-1 focus:ring-[#16a34a]';
@@ -49,8 +50,12 @@ export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
+  const [returnTo, setReturnTo] = useState(DEFAULT_SAFE_RETURN_PATH);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setReturnTo(safeReturnPath(params.get('from') || params.get('returnTo')));
+
     fetch('/api/user/auth/providers')
       .then(async (res) => {
         if (!res.ok) return;
@@ -104,7 +109,7 @@ export default function SignupForm() {
           // ignore
         }
       }
-      router.push('/user-dashboard');
+      router.push(returnTo);
       router.refresh();
     } catch {
       setError('Unable to connect. Please try again.');
@@ -116,7 +121,11 @@ export default function SignupForm() {
   return (
     <AuthShell title="New to Indian Treks? Register" titleInsideCard tagline="Treks that transform lives">
       <a
-        href={googleReady ? '/api/user/auth/google?returnTo=%2Fuser-dashboard' : undefined}
+        href={
+          googleReady
+            ? `/api/user/auth/google?returnTo=${encodeURIComponent(returnTo)}`
+            : undefined
+        }
         aria-disabled={!googleReady}
         onClick={(e) => {
           if (!googleReady) {
@@ -350,7 +359,14 @@ export default function SignupForm() {
         </button>
 
         <p className="pt-1 text-center text-sm">
-          <Link href="/login" className="font-medium text-[#2563eb] hover:underline">
+          <Link
+            href={
+              returnTo !== DEFAULT_SAFE_RETURN_PATH
+                ? `/login?from=${encodeURIComponent(returnTo)}`
+                : '/login'
+            }
+            className="font-medium text-[#2563eb] hover:underline"
+          >
             « Back to Login
           </Link>
         </p>

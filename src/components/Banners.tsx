@@ -18,16 +18,12 @@ export interface BannerItem {
    * Designed creative: art already includes title/CTA — skip HTML overlays.
    */
   designed?: boolean;
-  /**
-   * Asset is sized to the strip aspect — use cover for true edge-to-edge fill.
-   * Prefer exporting at 1920×400 so no pad is needed.
-   */
-  fillFrame?: boolean;
 }
 
-/** Shared promo-slider heights — image never drives layout. */
-const FRAME_HEIGHT = 'h-[160px] sm:h-[200px] lg:h-[240px]';
-const FRAME_HEIGHT_EMBEDDED = 'h-[140px]';
+/** Native winter banner size — every promo box matches this image ratio. */
+const BANNER_W = 3840;
+const BANNER_H = 764;
+const BANNER_ASPECT = `${BANNER_W} / ${BANNER_H}`;
 
 const defaultBanners: BannerItem[] = [
   { src: photos.vof, href: '/treks/valley-of-flowers', title: 'Valley of Flowers Trek', subtitle: 'UNESCO Himalayan Paradise - 6D/5N', badge: 'Best Seller', discount: '₹8,999' },
@@ -41,16 +37,12 @@ function SlideImage({
   src,
   desktopSrc,
   alt,
-  fillFrame,
 }: {
   src: string;
   desktopSrc?: string;
   alt: string;
-  fillFrame?: boolean;
 }) {
   const desk = desktopSrc || src;
-  /** fillFrame assets are strip-sized (pad/export) — cover fills the box with no blur bars. */
-  const fit = fillFrame ? 'object-cover object-center' : 'object-contain object-center';
 
   return (
     <>
@@ -62,7 +54,7 @@ function SlideImage({
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className={`${fit} lg:hidden`}
+        className="h-full w-full object-cover object-center lg:hidden"
       />
       <Image
         src={desk}
@@ -73,15 +65,15 @@ function SlideImage({
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className={`${fit} hidden lg:block`}
+        className="hidden h-full w-full object-cover object-center lg:block"
       />
     </>
   );
 }
 
 /**
- * Promo slider — fixed-height frame; image never expands layout.
- * object-fit:contain preserves full artwork/text when ratios differ.
+ * Promo slider — box aspect ratio matches the banner image (3840×764).
+ * Every homepage / embedded banner uses the same image-sized frame.
  */
 export default function Banners({
   items = defaultBanners,
@@ -137,12 +129,11 @@ export default function Banners({
   if (!count) return null;
 
   const designedActive = Boolean(items[index]?.designed);
-  const frameH = embedded ? FRAME_HEIGHT_EMBEDDED : FRAME_HEIGHT;
 
   const slider = (
     <div
       className={`relative w-full overflow-hidden rounded-[18px] shadow-sm ${
-        designedActive ? 'bg-[#eef2f6]' : 'bg-[#1f2937]'
+        designedActive ? 'bg-transparent' : 'bg-[#1f2937]'
       }`}
       onPointerDown={pause}
       onMouseEnter={() => { pausedRef.current = true; }}
@@ -156,7 +147,11 @@ export default function Banners({
         else goTo(index - 1);
       }}
     >
-      <div className={`relative w-full shrink-0 overflow-hidden ${frameH}`}>
+      {/* Box sized to banner image ratio — full width, stable across all slides */}
+      <div
+        className="relative w-full shrink-0 overflow-hidden"
+        style={{ aspectRatio: BANNER_ASPECT }}
+      >
         {items.map((b, i) => {
           const active = i === index;
           return (
@@ -179,7 +174,6 @@ export default function Banners({
                 src={b.src}
                 desktopSrc={b.desktopSrc}
                 alt={b.title || 'Promo'}
-                fillFrame={b.fillFrame}
               />
 
               {!b.designed && (

@@ -6,10 +6,13 @@ import { createCheckoutBooking } from '@/lib/payments/service';
 import type { BookingPayment } from '@/lib/operations/types';
 import {
   CHECKOUT_LIMIT,
+  PROTECTED_MUTATION_IP_ABUSE_LIMIT,
+  checkIpAbuseLimit,
+  checkUserRateLimit,
   clientIp,
-  consumeRateLimit,
   rateLimitedResponse,
 } from '@/lib/security/rate-limit';
+import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +25,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const limited = await consumeRateLimit(CHECKOUT_LIMIT, clientIp(req));
+  // 1) Lightweight IP flood shield (separate from authenticated op quota).
+  const abuse = await checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req));
+  if (!abuse.allowed) {
+    return rateLimitedResponse(abuse.retryAfterSec);
+  }
+
+  // 2) Authentication — anonymous must get 401 before authenticated op limits.
+  const user = await getCurrentUser();
+  if (!user) {
+    console.info(
+      JSON.stringify({
+        scope: 'bookings.checkout',
+        event: 'auth_required',
+        ip: clientIp(req),
+      }),
+    );
+    return unauthorizedUserResponse();
+  }
+
+  // 3) Authenticated user operation limit.
+  const limited = await checkUserRateLimit(CHECKOUT_LIMIT, user.id);
   if (!limited.allowed) {
     return rateLimitedResponse(limited.retryAfterSec);
   }
@@ -73,7 +96,8 @@ export async function POST(req: NextRequest) {
           : 400;
     return NextResponse.json(
       {
-        error: message,
+        error:
+          status === 401 ? 'Please sign in to continue.' : message,
         code:
           code ||
           (status === 401 ? 'AUTH_REQUIRED' : status === 409 ? 'BOOKING_UNAVAILABLE' : undefined),

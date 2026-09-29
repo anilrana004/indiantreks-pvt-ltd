@@ -7,6 +7,7 @@ import {
   isGoogleAuthConfigured,
   resolveRequestOrigin,
 } from '@/lib/user-auth/google';
+import { safeReturnPath } from '@/lib/security/urls';
 
 export async function GET(req: Request) {
   if (!isGoogleAuthConfigured()) {
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
 
   const origin = resolveRequestOrigin(req);
   const url = new URL(req.url);
-  const returnTo = url.searchParams.get('returnTo') || '/user-dashboard';
+  const returnTo = safeReturnPath(url.searchParams.get('returnTo'));
   const state = createOAuthState();
   const { verifier, challenge } = createPkcePair();
   const redirectUri = googleRedirectUri(origin);
@@ -38,11 +39,7 @@ export async function GET(req: Request) {
   response.cookies.set('google_oauth_state', state, cookieBase);
   response.cookies.set('google_oauth_verifier', verifier, cookieBase);
   response.cookies.set('google_oauth_redirect', redirectUri, cookieBase);
-  response.cookies.set(
-    'google_oauth_return',
-    returnTo.startsWith('/') ? returnTo : '/user-dashboard',
-    cookieBase,
-  );
+  response.cookies.set('google_oauth_return', returnTo, cookieBase);
 
   return response;
 }

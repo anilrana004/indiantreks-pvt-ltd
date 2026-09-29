@@ -55,5 +55,5 @@ export function clearUserSession(response: NextResponse) {
 }
 
 export function unauthorizedUserResponse(message = 'Please sign in to continue.') {
-  return NextResponse.json({ error: message }, { status: 401 });
+  return NextResponse.json({ error: message, code: 'AUTH_REQUIRED' }, { status: 401 });
 }

@@ -5,10 +5,13 @@ import { isRazorpayConfigured } from '@/lib/payments/razorpay';
 import { createRazorpayOrderForBooking } from '@/lib/payments/service';
 import {
   PAYMENT_ORDER_LIMIT,
+  PROTECTED_MUTATION_IP_ABUSE_LIMIT,
+  checkIpAbuseLimit,
+  checkUserRateLimit,
   clientIp,
-  consumeRateLimit,
   rateLimitedResponse,
 } from '@/lib/security/rate-limit';
+import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
 
 export const runtime = 'nodejs';
 
@@ -18,7 +21,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Razorpay is not configured' }, { status: 503 });
   }
 
-  const limited = await consumeRateLimit(PAYMENT_ORDER_LIMIT, clientIp(req));
+  const abuse = await checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req));
+  if (!abuse.allowed) {
+    return rateLimitedResponse(abuse.retryAfterSec);
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    console.info(
+      JSON.stringify({
+        scope: 'payments.create_order',
+        event: 'auth_required',
+        ip: clientIp(req),
+      }),
+    );
+    return unauthorizedUserResponse();
+  }
+
+  const limited = await checkUserRateLimit(PAYMENT_ORDER_LIMIT, user.id);
   if (!limited.allowed) {
     return rateLimitedResponse(limited.retryAfterSec);
   }
@@ -45,7 +65,10 @@ export async function POST(req: NextRequest) {
         ? Number((err as { status: number }).status)
         : 400;
     return NextResponse.json(
-      { error: message, code: status === 401 ? 'AUTH_REQUIRED' : undefined },
+      {
+        error: status === 401 ? 'Please sign in to continue.' : message,
+        code: status === 401 ? 'AUTH_REQUIRED' : undefined,
+      },
       { status: Number.isFinite(status) ? status : 400 },
     );
   }

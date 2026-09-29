@@ -3,32 +3,25 @@ import { photos } from '@/lib/media';
 import { cloudinaryAssetUrl } from '@/lib/cloudinary';
 
 /**
- * Designed strip creatives are ~3:1 (e.g. 2170×725).
- * Pad to the promo-frame ratio so `fillFrame` covers edge-to-edge with no gray bars.
+ * Designed promo strips target ~5:1 (this winter banner is native 3840×764).
+ * Width-only scale preserves the full poster.
  */
-function designedStripBanner(assetPath: string, background: string) {
+function designedStripBanner(assetPath: string) {
   return {
     mobile: cloudinaryAssetUrl(assetPath, {
-      w: 1200,
-      h: 480,
-      crop: 'pad',
-      gravity: 'center',
-      background,
+      w: 1000,
+      crop: 'scale',
     }),
     desktop: cloudinaryAssetUrl(assetPath, {
       w: 1920,
-      h: 400,
-      crop: 'pad',
-      gravity: 'center',
-      background,
+      crop: 'scale',
     }),
   };
 }
 
-/** India's Best Winter Treks — homepage explore slide 1. */
+/** India's Best Winter Treks — homepage explore slide 1 (3840×764). */
 const winterTreksBanner = designedStripBanner(
-  'v1790619095/ChatGPT_Image_Sep_28_2026_11_40_23_PM.png',
-  'rgb:c8d8e8',
+  'v1790671201/da643e9dd79318e249d79083561f96e661437025-3840x764.avif',
 );
 
 /**
@@ -37,7 +30,6 @@ const winterTreksBanner = designedStripBanner(
  */
 const kedarkanthaWinterBanner = designedStripBanner(
   'v1788533034/ChatGPT_Image_Sep_4_2026_08_13_25_PM.png',
-  'rgb:8eb4dc',
 );
 
 /** Shared winter-treks designed promo (hero mobile strip + homepage explore). */
@@ -47,7 +39,6 @@ export const WINTER_TREKS_PROMO_BANNER: BannerItem = {
   href: '/treks?season=winter',
   title: "India's Best Winter Treks",
   designed: true,
-  fillFrame: true,
 };
 
 export type HomeBannerGroup =
@@ -68,7 +59,6 @@ export const HOME_BANNERS: Record<HomeBannerGroup, BannerItem[]> = {
       href: '/treks?season=winter',
       title: 'Kedarkantha Trek — Pre Sell · Flat 10% Off',
       designed: true,
-      fillFrame: true,
     },
     { src: photos.himachal, href: '/treks?region=himachal', title: 'Himachal  -  Adventure Capital', subtitle: '8 breathtaking treks  -  Hampta, Triund, Bhrigu Lake, Kheerganga & more', badge: 'Himachal', discount: 'Explore Himachal' },
     { src: photos.yatra, href: '/yatra', title: 'Sacred Yatras  -  Spiritual Himalaya', subtitle: 'Kedarnath · Do Dham · Char Dham · Panch Kedar  -  divine journeys', badge: 'Yatra', discount: 'Plan Your Yatra' },

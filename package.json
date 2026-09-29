@@ -25,6 +25,8 @@
     "db:verify": "tsx scripts/verify-foundation.ts",
     "verify:production": "tsx scripts/verify-production.ts",
     "auth:smoke": "tsx scripts/smoke-customer-auth.ts",
+    "security:smoke": "tsx scripts/smoke-security-gates.ts",
+    "security:api": "tsx scripts/smoke-auth-payment-api.ts",
     "auth:backup": "tsx scripts/backup-customer-auth.ts",
     "payments:smoke": "tsx scripts/smoke-payments.ts",
     "images:webp": "node scripts/compress-images-webp.mjs"

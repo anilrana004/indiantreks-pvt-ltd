@@ -8,6 +8,7 @@ import {
   upsertGoogleUser,
 } from '@/lib/user-auth/service';
 import { createUserSessionToken, userSessionCookieOptions } from '@/lib/user-auth/session';
+import { safeReturnPath } from '@/lib/security/urls';
 
 function clearOauthCookies(response: NextResponse) {
   const clear = { httpOnly: true, path: '/', maxAge: 0 };
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
   const expectedState = cookieStore.get('google_oauth_state')?.value;
   const verifier = cookieStore.get('google_oauth_verifier')?.value;
   const pinnedRedirect = cookieStore.get('google_oauth_redirect')?.value;
-  const returnTo = cookieStore.get('google_oauth_return')?.value || '/user-dashboard';
+  const returnTo = safeReturnPath(cookieStore.get('google_oauth_return')?.value);
   const redirectUri = pinnedRedirect || googleRedirectUri(origin);
 
   if (error) {

@@ -1,7 +1,7 @@
 'use client';
 import { useSearchParams, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useMemo, useState, Suspense } from 'react';
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { ArrowRight, Shield, Check, ChevronRight, Star, Clock, Users, Phone, Calendar, CreditCard, Lock, Wallet, Percent, Gift, Loader, Ban, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { treks, trekDetailPath, type PricingTier } from '@/lib/data';
@@ -25,6 +25,7 @@ import { addOns } from '@/lib/trek-detail-content';
 import type { PublicUser } from '@/lib/user-auth/types';
 import { openRazorpayCheckout } from '@/lib/payments/checkout-client';
 import type { BookingPayment } from '@/lib/operations/types';
+import { safeReturnPath } from '@/lib/security/urls';
 
 type BookingParticipant = {
   id: string;
@@ -125,6 +126,10 @@ function BookingContent() {
   });
   const [participants, setParticipants] = useState<BookingParticipant[]>([]);
   const [signedInUser, setSignedInUser] = useState<PublicUser | null>(null);
+  /** UX only — real security is enforced by booking/payment APIs. */
+  const [authStatus, setAuthStatus] = useState<'checking' | 'guest' | 'signed_in'>('checking');
+  const [openingLogin, setOpeningLogin] = useState(false);
+  const loginRedirectStarted = useRef(false);
   const [profileFilled, setProfileFilled] = useState(false);
   const [gearTick, setGearTick] = useState(0);
   const [livePricing, setLivePricing] = useState<PricingTier[] | null>(null);
@@ -152,14 +157,9 @@ function BookingContent() {
   }, [trek]);
 
   const gearQuery = sp.get('gear');
-  const returnToRaw = sp.get('returnTo');
-  const returnTo =
-    returnToRaw &&
-    returnToRaw.startsWith('/') &&
-    !returnToRaw.startsWith('//') &&
-    !returnToRaw.includes('\\')
-      ? returnToRaw
-      : null;
+  const returnTo = safeReturnPath(sp.get('returnTo'), '');
+  // Empty string fallback means "no returnTo" for back link — coerce to null.
+  const returnToHref = returnTo || null;
 
   useEffect(() => {
     if (!trek) return;
@@ -189,11 +189,20 @@ function BookingContent() {
     (async () => {
       try {
         const res = await fetch('/api/user/auth/me', { credentials: 'include', cache: 'no-store' });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          setSignedInUser(null);
+          setAuthStatus('guest');
+          return;
+        }
         const body = (await res.json()) as { user: PublicUser };
         const user = body.user;
-        if (!user || cancelled) return;
+        if (!user || cancelled) {
+          setAuthStatus('guest');
+          return;
+        }
         setSignedInUser(user);
+        setAuthStatus('signed_in');
         setForm((f) => ({
           ...f,
           name: f.name.trim() || user.name || [user.firstName, user.lastName].filter(Boolean).join(' '),
@@ -202,7 +211,10 @@ function BookingContent() {
         }));
         setProfileFilled(true);
       } catch {
-        // Guest may browse — payment requires login
+        if (!cancelled) {
+          setSignedInUser(null);
+          setAuthStatus('guest');
+        }
       }
     })();
     return () => {
@@ -210,6 +222,14 @@ function BookingContent() {
     };
   }, []);
 
+  const redirectToLogin = () => {
+    if (!trek || loginRedirectStarted.current) return;
+    loginRedirectStarted.current = true;
+    setOpeningLogin(true);
+    saveBookingDraft(trek.id, { form, participants, step: 3 });
+    const from = `${window.location.pathname}${window.location.search || ''}`;
+    router.push(`/login?from=${encodeURIComponent(from)}`);
+  };
   const gearLines = useMemo(
     () => (trek ? cartForTrek(trek.id) : []),
     [trek, gearTick],
@@ -241,7 +261,7 @@ function BookingContent() {
     </div>
   );
 
-  const backHref = returnTo || trekDetailPath(trek);
+  const backHref = returnToHref || trekDetailPath(trek);
   const selectedPkg =
     pricingTiers.find((p) => p.name === pkgKey) ||
     pricingTiers[0] ||
@@ -288,7 +308,7 @@ function BookingContent() {
       setStep((s) => s + 1);
       return;
     }
-    if (paying) return;
+    if (paying || openingLogin || authStatus === 'checking') return;
     setPayError('');
     setPaying(true);
 
@@ -300,11 +320,9 @@ function BookingContent() {
         return;
       }
 
-      // P1: payment requires authentication — preserve draft and send to login.
-      if (!signedInUser) {
-        saveBookingDraft(trek.id, { form, participants, step: 3 });
-        const from = `${window.location.pathname}${window.location.search || ''}`;
-        router.push(`/login?from=${encodeURIComponent(from)}`);
+      // UX gate — backend APIs also reject anonymous callers with 401.
+      if (authStatus !== 'signed_in' || !signedInUser) {
+        redirectToLogin();
         setPaying(false);
         return;
       }
@@ -339,9 +357,8 @@ function BookingContent() {
       });
       const checkoutBody = await checkoutRes.json();
       if (checkoutRes.status === 401 || checkoutBody.code === 'AUTH_REQUIRED') {
-        saveBookingDraft(trek.id, { form, participants, step: 3 });
-        const from = `${window.location.pathname}${window.location.search || ''}`;
-        router.push(`/login?from=${encodeURIComponent(from)}`);
+        setPayError('Please log in to continue with your booking.');
+        redirectToLogin();
         setPaying(false);
         return;
       }
@@ -372,6 +389,12 @@ function BookingContent() {
         body: JSON.stringify({ bookingId, checkoutToken }),
       });
       const orderBody = await orderRes.json();
+      if (orderRes.status === 401 || orderBody.code === 'AUTH_REQUIRED') {
+        setPayError('Please log in to continue with your booking.');
+        redirectToLogin();
+        setPaying(false);
+        return;
+      }
       if (!orderRes.ok) {
         throw new Error(orderBody.error || 'Unable to start payment');
       }
@@ -766,10 +789,26 @@ function BookingContent() {
                   Back
                 </button>
               )}
-              <button type="submit" disabled={paying} className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm disabled:opacity-70 bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25`}>
+              <button
+                type="submit"
+                disabled={
+                  paying ||
+                  openingLogin ||
+                  (step === 3 && authStatus === 'checking')
+                }
+                className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm disabled:opacity-70 bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25`}
+              >
                 {paying ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" /> Opening Razorpay…
+                  </>
+                ) : step === 3 && openingLogin ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Opening login…
+                  </>
+                ) : step === 3 && authStatus === 'checking' ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Checking login…
                   </>
                 ) : (
                   <>
@@ -777,9 +816,9 @@ function BookingContent() {
                       ? 'Continue to Details'
                       : step === 2
                         ? 'Review Booking'
-                        : !signedInUser
-                          ? 'Sign in to Pay'
-                          : `Pay Now · ₹${payableNow.toLocaleString()}`}
+                        : authStatus !== 'signed_in'
+                          ? 'Login to Continue'
+                          : `Continue to Payment · ₹${payableNow.toLocaleString()}`}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
