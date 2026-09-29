@@ -7,10 +7,16 @@ import {
 } from '@/lib/user-auth/service';
 import { createUserSessionToken, userSessionCookieOptions } from '@/lib/user-auth/session';
 import { validateLoginBody } from '@/lib/user-auth/validation';
+import {
+  AUTH_LOGIN_LIMIT,
+  clientIp,
+  consumeRateLimit,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
 
 function clientMeta(req: Request) {
   return {
-    ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+    ip: clientIp(req),
     userAgent: req.headers.get('user-agent'),
   };
 }
@@ -31,6 +37,12 @@ export async function POST(req: Request) {
     const parsed = validateLoginBody(body);
     if (parsed.fieldErrors) {
       return NextResponse.json({ error: 'Validation failed', fieldErrors: parsed.fieldErrors }, { status: 400 });
+    }
+
+    const identity = `${clientIp(req)}:${parsed.data!.email.trim().toLowerCase()}`;
+    const limited = await consumeRateLimit(AUTH_LOGIN_LIMIT, identity);
+    if (!limited.allowed) {
+      return rateLimitedResponse(limited.retryAfterSec);
     }
 
     const result = await authenticateWithPassword(parsed.data!.email, parsed.data!.password);

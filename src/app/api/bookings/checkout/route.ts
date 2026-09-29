@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { isRazorpayConfigured } from '@/lib/payments/razorpay';
-import { clientIp, rateLimit } from '@/lib/payments/rate-limit';
 import { createCheckoutBooking } from '@/lib/payments/service';
 import type { BookingPayment } from '@/lib/operations/types';
+import {
+  CHECKOUT_LIMIT,
+  clientIp,
+  consumeRateLimit,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -17,9 +22,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ip = clientIp(req);
-  if (!rateLimit(`checkout:${ip}`, 10, 60_000)) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  const limited = await consumeRateLimit(CHECKOUT_LIMIT, clientIp(req));
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited.retryAfterSec);
   }
 
   try {
@@ -55,7 +60,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Invalid request';
-    const status = message.includes('not found') ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    const status =
+      typeof err === 'object' && err && 'status' in err
+        ? Number((err as { status: number }).status)
+        : message.includes('not found')
+          ? 404
+          : 400;
+    return NextResponse.json(
+      { error: message, code: status === 401 ? 'AUTH_REQUIRED' : undefined },
+      { status: Number.isFinite(status) ? status : 400 },
+    );
   }
 }

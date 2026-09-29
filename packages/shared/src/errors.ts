@@ -5,6 +5,7 @@ export type ApiErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
+  | 'GONE'
   | 'DB_UNAVAILABLE'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR';

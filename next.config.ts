@@ -1,5 +1,27 @@
 import type { NextConfig } from "next";
 
+/**
+ * Careful CSP baseline — allows Razorpay checkout, Google OAuth/Fonts/Analytics,
+ * Mapbox GL, and Cloudinary delivery without blocking the storefront.
+ * Tighten further only after verifying third-party flows in staging.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self' https://api.razorpay.com https://checkout.razorpay.com",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://i.ytimg.com https://*.mapbox.com https://*.razorpay.com https://indiantreks.in",
+  "media-src 'self' https://res.cloudinary.com blob:",
+  "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://*.mapbox.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://api.mapbox.com https://*.razorpay.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com https://apis.google.com https://www.googletagmanager.com https://www.google-analytics.com https://api.mapbox.com",
+  "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://*.razorpay.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://res.cloudinary.com https://api.cloudinary.com https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com https://www.google-analytics.com https://www.googletagmanager.com https://vitals.vercel-insights.com",
+  "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com https://www.youtube.com https://www.youtube-nocookie.com",
+  "worker-src 'self' blob:",
+  "child-src 'self' blob: https://checkout.razorpay.com",
+].join("; ");
+
 const nextConfig: NextConfig = {
   // Ensure the Mapbox public token is always available to client bundles.
   env: {
@@ -39,8 +61,16 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: CONTENT_SECURITY_POLICY,
           },
         ],
       },

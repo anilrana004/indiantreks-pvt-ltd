@@ -202,7 +202,7 @@ const departureBadge: Record<
 > = {
   available: { className: 'fd-badge--open', label: 'Open', icon: 'fa-solid fa-circle-check' },
   'filling-fast': { className: 'fd-badge--filling', label: 'Filling', icon: 'fa-solid fa-bolt' },
-  'almost-full': { className: 'fd-badge--limited', label: 'Few left', icon: 'fa-solid fa-fire' },
+  'almost-full': { className: 'fd-badge--limited', label: 'Limited', icon: 'fa-solid fa-fire' },
   'sold-out': { className: 'fd-badge--full', label: 'Full', icon: 'fa-solid fa-ban' },
 };
 
@@ -340,7 +340,7 @@ function FixedDepartures({
                     {spotlight.weekday}, {spotlight.label}
                   </p>
                   <span className="fd-studio__spotlight-seats">
-                    {spotlight.seatsLeft} seats left
+                    {dateTagLabel[spotlight.status]}
                   </span>
                 </div>
                 <button
@@ -436,7 +436,7 @@ function FixedDepartures({
                       </span>
 
                       {!full && (
-                        <span className="fd-studio__tile-seats">{batch.seatsLeft} left</span>
+                        <span className="fd-studio__tile-seats">{dateTagLabel[batch.status]}</span>
                       )}
                     </button>
                   );

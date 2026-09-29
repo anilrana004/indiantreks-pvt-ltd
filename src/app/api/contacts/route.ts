@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { createContact } from '@/lib/operations/service';
+import {
+  CONTACT_LIMIT,
+  clientIp,
+  consumeRateLimit,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
 
 export async function POST(req: NextRequest) {
   if (!isDbConfigured()) return dbUnavailableResponse();
+
+  const limited = await consumeRateLimit(CONTACT_LIMIT, clientIp(req));
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited.retryAfterSec);
+  }
 
   try {
     const body = await req.json();

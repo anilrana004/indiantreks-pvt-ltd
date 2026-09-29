@@ -54,12 +54,18 @@ const FIXED_DEPARTURE_SCHEDULES: Record<
   },
 };
 
-/** Stable 0..n-1 hash from trek id (keeps seats/status consistent per trek). */
+/** Stable 0..n-1 hash from trek id (keeps status consistent per trek). */
 function hashId(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h;
 }
+
+/**
+ * Seat counts are NOT authoritative inventory until DB capacity/holds ship.
+ * Generated batches expose capacity for layout only — UI must not claim "N seats left".
+ */
+export const INVENTORY_IS_AUTHORITATIVE = false;
 
 function pad(n: number) {
   return String(n).padStart(2, '0');

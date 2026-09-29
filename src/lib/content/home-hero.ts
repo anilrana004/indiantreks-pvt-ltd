@@ -1,4 +1,5 @@
 import type { BannerItem } from '@/components/Banners';
+import { WINTER_TREKS_PROMO_BANNER } from '@/lib/content/home-banners';
 import { KEDARKANTHA_FEATURE, KEDARKANTHA_HOME_HERO } from '@/lib/content/treks/kedarkantha/gallery-content';
 import {
   HOME_HIMALAYAN_DEFAULT_SEASON,
@@ -50,12 +51,7 @@ export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
 ];
 
 export const HERO_EXPLORE_PROMOS: BannerItem[] = [
-  {
-    src: photos.choptaSale,
-    href: '/treks/chopta-tungnath',
-    title: 'Chopta Tungnath Chandrashila',
-    designed: true,
-  },
+  WINTER_TREKS_PROMO_BANNER,
   { src: photos.yatra, href: '/yatra', title: 'Sacred Yatras – Spiritual Himalaya', subtitle: 'Kedarnath · Do Dham · Char Dham · Panch Kedar – divine journeys', badge: 'Yatra', discount: 'Plan Your Yatra' },
   { src: photos.uttarakhand, href: '/treks?region=uttarakhand', title: 'Uttarakhand – Land of Gods & Treks', subtitle: '10 iconic Himalayan treks across Chopta, Kedarkantha & beyond', badge: 'Uttarakhand', discount: 'View All Treks' },
   { src: photos.himachal, href: '/treks?region=himachal', title: 'Himachal – Adventure Capital', subtitle: 'Hampta, Triund, Bhrigu Lake, Kheerganga & more', badge: 'Himachal', discount: 'Explore Himachal' },

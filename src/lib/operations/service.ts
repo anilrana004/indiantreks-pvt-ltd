@@ -1,4 +1,4 @@
-import { desc, eq, inArray, or, ilike } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { getDb, schema } from '@/lib/db';
 import type {
   Booking,
@@ -134,36 +134,98 @@ export async function listBookings(): Promise<Booking[]> {
   return rows.map(toBooking);
 }
 
-export async function createBooking(input: CreateBookingInput): Promise<Booking> {
-  const [row] = await requireDb()
-    .insert(bookings)
-    .values({
-      trekId: input.trekId,
-      trekTitle: input.trekTitle,
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
-      package: input.package,
-      persons: input.persons,
-      date: input.date,
-      payment: input.payment,
-      amount: input.amount,
-      status: input.status ?? 'pending_payment',
-      notes: input.notes,
-      userId: input.userId ?? null,
-      referenceCode: input.referenceCode ?? null,
-      city: input.city ?? '',
-      participantsJson: input.participantsJson ?? '[]',
-      pricingSnapshot: input.pricingSnapshot ?? '{}',
-      payablePaise: input.payablePaise ?? input.amount * 100,
-      totalPaise: input.totalPaise ?? input.amount * 100,
-      currency: input.currency ?? 'INR',
-      checkoutTokenHash: input.checkoutTokenHash ?? null,
-      paymentStatus: input.paymentStatus ?? 'unpaid',
-      updatedAt: new Date(),
-    })
-    .returning();
-  return toBooking(row!);
+export async function getOperationsDashboardCounts(): Promise<{
+  bookings: number;
+  contacts: number;
+  subscribers: number;
+  giftCards: number;
+  users: number;
+}> {
+  const db = requireDb();
+  const [[b], [c], [s], [g], [u]] = await Promise.all([
+    db.select({ value: count() }).from(bookings),
+    db.select({ value: count() }).from(contacts),
+    db.select({ value: count() }).from(newsletterSubscribers),
+    db.select({ value: count() }).from(giftCards),
+    db.select({ value: count() }).from(siteUsers),
+  ]);
+  return {
+    bookings: Number(b?.value || 0),
+    contacts: Number(c?.value || 0),
+    subscribers: Number(s?.value || 0),
+    giftCards: Number(g?.value || 0),
+    users: Number(u?.value || 0),
+  };
+}
+
+export type BookingsPageResult = {
+  bookings: Booking[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function listBookingsPage(opts?: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+}): Promise<BookingsPageResult> {
+  const db = requireDb();
+  const page = Math.max(1, Math.floor(opts?.page || 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(opts?.pageSize || 25)));
+  const q = opts?.q?.trim() || '';
+  const status = opts?.status?.trim() || '';
+
+  const filters = [];
+  if (q) {
+    const pattern = `%${q}%`;
+    filters.push(
+      or(
+        ilike(bookings.name, pattern),
+        ilike(bookings.trekTitle, pattern),
+        ilike(bookings.email, pattern),
+        ilike(bookings.phone, pattern),
+        ilike(bookings.referenceCode, pattern),
+      )!,
+    );
+  }
+  if (status) {
+    filters.push(eq(bookings.status, status));
+  }
+  const where = filters.length ? and(...filters) : undefined;
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(bookings)
+    .where(where);
+
+  const total = Number(totalRow?.value || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * pageSize;
+
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(where)
+    .orderBy(desc(bookings.createdAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  return {
+    bookings: rows.map(toBooking),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  };
+}
+
+export async function createBooking(_input: CreateBookingInput): Promise<Booking> {
+  // P0: client-priced creates are permanently disabled. Use createCheckoutBooking.
+  throw new Error('LEGACY_BOOKING_DISABLED: use /api/bookings/checkout');
 }
 
 export async function updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | null> {
@@ -260,41 +322,86 @@ export async function removeSubscriber(id: string): Promise<boolean> {
 }
 
 export async function listSiteUsers(opts?: { search?: string }): Promise<SiteUser[]> {
+  const result = await listSiteUsersPage({
+    page: 1,
+    pageSize: 10_000,
+    q: opts?.search,
+  });
+  return result.users;
+}
+
+export type SiteUsersPageResult = {
+  users: SiteUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function listSiteUsersPage(opts?: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+}): Promise<SiteUsersPageResult> {
   const db = requireDb();
-  const search = opts?.search?.trim();
+  const page = Math.max(1, Math.floor(opts?.page || 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(opts?.pageSize || 25)));
+  const search = opts?.q?.trim() || '';
 
-  const rows = search
-    ? await db
-        .select()
-        .from(siteUsers)
-        .where(
-          or(
-            ilike(siteUsers.name, `%${search}%`),
-            ilike(siteUsers.email, `%${search}%`),
-            ilike(siteUsers.phone, `%${search}%`),
-            ilike(siteUsers.firstName, `%${search}%`),
-            ilike(siteUsers.lastName, `%${search}%`),
-          ),
-        )
-        .orderBy(desc(siteUsers.createdAt))
-    : await db.select().from(siteUsers).orderBy(desc(siteUsers.createdAt));
+  const where = search
+    ? or(
+        ilike(siteUsers.name, `%${search}%`),
+        ilike(siteUsers.email, `%${search}%`),
+        ilike(siteUsers.phone, `%${search}%`),
+        ilike(siteUsers.firstName, `%${search}%`),
+        ilike(siteUsers.lastName, `%${search}%`),
+      )
+    : undefined;
 
-  const loginEvents = await db
-    .select({
-      userId: authAuditEvents.userId,
-      createdAt: authAuditEvents.createdAt,
-    })
-    .from(authAuditEvents)
-    .where(inArray(authAuditEvents.event, ['login_success', 'google_login_success']))
-    .orderBy(desc(authAuditEvents.createdAt));
+  const [totalRow] = await db.select({ value: count() }).from(siteUsers).where(where);
+  const total = Number(totalRow?.value || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * pageSize;
+
+  const rows = await db
+    .select()
+    .from(siteUsers)
+    .where(where)
+    .orderBy(desc(siteUsers.createdAt))
+    .limit(pageSize)
+    .offset(offset);
 
   const lastLoginByUser = new Map<string, string>();
-  for (const event of loginEvents) {
-    if (!event.userId || lastLoginByUser.has(event.userId)) continue;
-    lastLoginByUser.set(event.userId, event.createdAt.toISOString());
+  if (rows.length > 0) {
+    const ids = rows.map((r) => r.id);
+    const loginEvents = await db
+      .select({
+        userId: authAuditEvents.userId,
+        createdAt: authAuditEvents.createdAt,
+      })
+      .from(authAuditEvents)
+      .where(
+        and(
+          inArray(authAuditEvents.userId, ids),
+          inArray(authAuditEvents.event, ['login_success', 'google_login_success']),
+        ),
+      )
+      .orderBy(desc(authAuditEvents.createdAt));
+
+    for (const event of loginEvents) {
+      if (!event.userId || lastLoginByUser.has(event.userId)) continue;
+      lastLoginByUser.set(event.userId, event.createdAt.toISOString());
+    }
   }
 
-  return rows.map((row) => toSiteUser(row, lastLoginByUser.get(row.id) ?? null));
+  return {
+    users: rows.map((row) => toSiteUser(row, lastLoginByUser.get(row.id) ?? null)),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  };
 }
 
 export function siteUsersToCsv(rows: SiteUser[]): string {

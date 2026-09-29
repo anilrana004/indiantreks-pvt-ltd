@@ -2,6 +2,7 @@ import { treks, type PricingTier } from '@/lib/data';
 import { getGearById, type GearCartLine } from '@/lib/gear-rental';
 import { addOns } from '@/lib/trek-detail-content';
 import { rupeesToPaise } from '@/lib/payments/razorpay';
+import { resolveTrustedPickupFeeInr } from '@/lib/payments/pickup-fees';
 import type { BookingPayment } from '@/lib/operations/types';
 
 export type CheckoutParticipant = {
@@ -51,7 +52,7 @@ export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPri
 
   const persons = Math.max(1, Math.min(20, Math.floor(input.persons) || 1));
   const tier = resolveTier(trek.pricing, input.packageName);
-  const pickupFee = Math.max(0, Math.floor(input.pickupFeePerPerson || 0));
+  const pickupFee = resolveTrustedPickupFeeInr(input.pickupFeePerPerson);
 
   const selectedAddonIds = (input.addonIds || []).map((id) => id.trim()).filter(Boolean);
   const selectedAddons = addOns.filter((a) => selectedAddonIds.includes(a.id));
@@ -123,6 +124,8 @@ export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPri
       totalPaise,
       currency: 'INR',
       calculatedAt: new Date().toISOString(),
+      trusted: true,
+      source: 'checkout',
     },
   };
 }

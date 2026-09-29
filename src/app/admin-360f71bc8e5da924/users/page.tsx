@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Download, Users as UsersIcon, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Users as UsersIcon, X } from 'lucide-react';
 import {
   adminUsersExportUrl,
   fetchAdminUsers,
@@ -15,6 +15,8 @@ import AdminEmptyState from '@/components/admin/ui/AdminEmptyState';
 import AdminPageHeader from '@/components/admin/ui/AdminPageHeader';
 import AdminSearchInput from '@/components/admin/ui/AdminSearchInput';
 import { AdminTableHead, AdminTd, AdminTh, AdminTr, AdminTableWrap } from '@/components/admin/ui/AdminTable';
+
+const PAGE_SIZE = 25;
 
 function formatPhone(user: SiteUser) {
   if (!user.phone) return '—';
@@ -31,33 +33,50 @@ function formatWhen(value?: string | null) {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<SiteUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [dbUnavailable, setDbUnavailable] = useState(false);
   const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<SiteUser | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setDbUnavailable(false);
     try {
-      setUsers(await fetchAdminUsers({ q: search.trim() || undefined }));
+      const result = await fetchAdminUsers({
+        q: query || undefined,
+        page,
+        pageSize: PAGE_SIZE,
+      });
+      setUsers(result.users);
+      setTotal(result.total);
+      setTotalPages(result.totalPages);
+      setPage(result.page);
     } catch {
       setDbUnavailable(true);
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [page, query]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      void load();
-    }, 200);
-    return () => clearTimeout(t);
+    void load();
   }, [load]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setPage(1);
+      setQuery(search.trim());
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   const download = (format: 'csv' | 'json-download') => {
     window.open(
-      adminUsersExportUrl(format, { q: search.trim() || undefined }),
+      adminUsersExportUrl(format, { q: query || undefined }),
       '_blank',
       'noopener,noreferrer',
     );
@@ -71,7 +90,7 @@ export default function AdminUsers() {
       <AdminPageHeader
         breadcrumb="Operations"
         title="Customer logins"
-        description={`${users.length} registered accounts · download for follow-ups`}
+        description={`${total} registered accounts · download for follow-ups`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <AdminSearchInput
@@ -105,35 +124,61 @@ export default function AdminUsers() {
           {users.length === 0 ? (
             <AdminEmptyState icon={UsersIcon} title="No customer accounts yet" />
           ) : (
-            <AdminTableWrap>
-              <AdminTableHead>
-                <AdminTh>Customer</AdminTh>
-                <AdminTh>Phone</AdminTh>
-                <AdminTh>Login</AdminTh>
-                <AdminTh>Last login</AdminTh>
-                <AdminTh>Joined</AdminTh>
-              </AdminTableHead>
-              <tbody>
-                {users.map((u) => (
-                  <AdminTr key={u.id} className="cursor-pointer" onClick={() => setSelected(u)}>
-                    <AdminTd className="font-medium text-slate-800">
-                      <div className="flex flex-col">
-                        <span>{u.name}</span>
-                        <span className="text-xs font-normal text-slate-500">{u.email}</span>
-                      </div>
-                    </AdminTd>
-                    <AdminTd className="text-slate-600">{formatPhone(u)}</AdminTd>
-                    <AdminTd>
-                      <AdminBadge variant={u.authProvider === 'google' ? 'info' : 'neutral'}>
-                        {u.authProvider}
-                      </AdminBadge>
-                    </AdminTd>
-                    <AdminTd className="text-xs text-slate-500">{formatWhen(u.lastLoginAt)}</AdminTd>
-                    <AdminTd className="text-xs text-slate-500">{formatWhen(u.createdAt)}</AdminTd>
-                  </AdminTr>
-                ))}
-              </tbody>
-            </AdminTableWrap>
+            <>
+              <AdminTableWrap>
+                <AdminTableHead>
+                  <AdminTh>Customer</AdminTh>
+                  <AdminTh>Phone</AdminTh>
+                  <AdminTh>Login</AdminTh>
+                  <AdminTh>Last login</AdminTh>
+                  <AdminTh>Joined</AdminTh>
+                </AdminTableHead>
+                <tbody>
+                  {users.map((u) => (
+                    <AdminTr key={u.id} className="cursor-pointer" onClick={() => setSelected(u)}>
+                      <AdminTd className="font-medium text-slate-800">
+                        <div className="flex flex-col">
+                          <span>{u.name}</span>
+                          <span className="text-xs font-normal text-slate-500">{u.email}</span>
+                        </div>
+                      </AdminTd>
+                      <AdminTd className="text-slate-600">{formatPhone(u)}</AdminTd>
+                      <AdminTd>
+                        <AdminBadge variant={u.authProvider === 'google' ? 'info' : 'neutral'}>
+                          {u.authProvider}
+                        </AdminBadge>
+                      </AdminTd>
+                      <AdminTd className="text-xs text-slate-500">{formatWhen(u.lastLoginAt)}</AdminTd>
+                      <AdminTd className="text-xs text-slate-500">{formatWhen(u.createdAt)}</AdminTd>
+                    </AdminTr>
+                  ))}
+                </tbody>
+              </AdminTableWrap>
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500">
+                  Page {page} of {totalPages}
+                  {loading ? ' · refreshing…' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    Next <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </AdminCard>
 

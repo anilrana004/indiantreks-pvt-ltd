@@ -175,6 +175,19 @@ function main() {
       : 'Cloudinary incomplete — admin image upload may fail',
   });
 
+  const brevoOk = Boolean(
+    process.env.BREVO_API_KEY?.trim() &&
+      (process.env.BREVO_SENDER_EMAIL?.trim() || process.env.EMAIL_FROM?.trim()),
+  );
+  results.push({
+    name: 'brevo_email',
+    ok: !(prod && !brevoOk),
+    level: prod ? 'error' : 'warn',
+    detail: brevoOk
+      ? 'Brevo transactional email configured'
+      : 'BREVO_API_KEY / BREVO_SENDER_EMAIL missing — password reset + booking emails will not send',
+  });
+
   const mongoOk = Boolean(
     process.env.MONGODB_URI?.trim() ||
       process.env.MONGO_URI?.trim() ||

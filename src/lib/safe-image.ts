@@ -55,5 +55,8 @@ export function trekPhoto(id: string, fallback: string = photos.uttarakhand): st
 /** Prefer a working src; fall back when Cloudinary fetch is empty/broken. */
 export function safeImage(src: string | undefined, fallback: string = photos.uttarakhand): string {
   if (!src || isBrokenCldFetch(src)) return ensureCldAuto(fallback);
-  return ensureCldAuto(normalizeCloudinaryCloud(src));
+  const normalized = ensureCldAuto(normalizeCloudinaryCloud(src));
+  // Empty or pathological Cloudinary paths → catalog fallback.
+  if (!normalized || isBrokenCldFetch(normalized)) return ensureCldAuto(fallback);
+  return normalized;
 }

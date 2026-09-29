@@ -29,10 +29,54 @@ function asOne<T>(data: unknown, key: string): T {
   return data as T;
 }
 
-export async function fetchAdminBookings(): Promise<Booking[]> {
-  const res = await adminFetch('/api/admin/bookings');
-  const data = await parseJson<Booking[] | { bookings: Booking[] }>(res);
-  return asList(data);
+export async function fetchAdminBookings(opts?: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+  all?: boolean;
+}): Promise<{
+  bookings: Booking[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> {
+  const params = new URLSearchParams();
+  if (opts?.all) params.set('all', '1');
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+  if (opts?.q) params.set('q', opts.q);
+  if (opts?.status) params.set('status', opts.status);
+  const qs = params.toString();
+  const res = await adminFetch(`/api/admin/bookings${qs ? `?${qs}` : ''}`);
+  const data = await parseJson<
+    | Booking[]
+    | {
+        bookings: Booking[];
+        total?: number;
+        page?: number;
+        pageSize?: number;
+        totalPages?: number;
+      }
+  >(res);
+  if (Array.isArray(data)) {
+    return {
+      bookings: data,
+      total: data.length,
+      page: 1,
+      pageSize: data.length || 25,
+      totalPages: 1,
+    };
+  }
+  const bookings = Array.isArray(data.bookings) ? data.bookings : [];
+  return {
+    bookings,
+    total: Number(data.total ?? bookings.length),
+    page: Number(data.page ?? 1),
+    pageSize: Number(data.pageSize ?? (bookings.length || 25)),
+    totalPages: Number(data.totalPages ?? 1),
+  };
 }
 
 export async function patchBookingStatus(id: string, status: BookingStatus): Promise<Booking> {
@@ -157,13 +201,50 @@ export async function deleteAdminSubscriber(id: string): Promise<void> {
   if (!res.ok) await parseJson(res);
 }
 
-export async function fetchAdminUsers(opts?: { q?: string }): Promise<SiteUser[]> {
+export async function fetchAdminUsers(opts?: {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{
+  users: SiteUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> {
   const params = new URLSearchParams();
   if (opts?.q) params.set('q', opts.q);
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
   const qs = params.toString();
   const res = await adminFetch(`/api/admin/users${qs ? `?${qs}` : ''}`);
-  const data = await parseJson<SiteUser[] | { users: SiteUser[] }>(res);
-  return asList(data);
+  const data = await parseJson<
+    SiteUser[] | {
+      users: SiteUser[];
+      total?: number;
+      count?: number;
+      page?: number;
+      pageSize?: number;
+      totalPages?: number;
+    }
+  >(res);
+  if (Array.isArray(data)) {
+    return {
+      users: data,
+      total: data.length,
+      page: 1,
+      pageSize: data.length || 25,
+      totalPages: 1,
+    };
+  }
+  const users = Array.isArray(data.users) ? data.users : [];
+  return {
+    users,
+    total: Number(data.total ?? data.count ?? users.length),
+    page: Number(data.page ?? 1),
+    pageSize: Number(data.pageSize ?? (users.length || 25)),
+    totalPages: Number(data.totalPages ?? 1),
+  };
 }
 
 export function adminUsersExportUrl(

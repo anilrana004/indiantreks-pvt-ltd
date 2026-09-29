@@ -52,6 +52,55 @@ function formatUserPhone(user: PublicUser): string {
   return `${code} ${digits}`.trim();
 }
 
+type BookingDraft = {
+  form: {
+    name: string;
+    email: string;
+    phone: string;
+    city: string;
+    persons: string;
+    men: string;
+    women: string;
+    date: string;
+    pkg: string;
+    pickup: string;
+    payment: string;
+    notes: string;
+  };
+  participants: BookingParticipant[];
+  step: number;
+};
+
+function draftKey(trekId: string) {
+  return `it-booking-draft:${trekId}`;
+}
+
+function saveBookingDraft(trekId: string, draft: BookingDraft) {
+  try {
+    sessionStorage.setItem(draftKey(trekId), JSON.stringify(draft));
+  } catch {
+    /* ignore */
+  }
+}
+
+function readBookingDraft(trekId: string): BookingDraft | null {
+  try {
+    const raw = sessionStorage.getItem(draftKey(trekId));
+    if (!raw) return null;
+    return JSON.parse(raw) as BookingDraft;
+  } catch {
+    return null;
+  }
+}
+
+function clearBookingDraft(trekId: string) {
+  try {
+    sessionStorage.removeItem(draftKey(trekId));
+  } catch {
+    /* ignore */
+  }
+}
+
 function BookingContent() {
   const params = useParams();
   const sp = useSearchParams();
@@ -102,6 +151,17 @@ function BookingContent() {
   }, [trek, gearQuery]);
 
   useEffect(() => {
+    if (!trek) return;
+    const draft = readBookingDraft(trek.id);
+    if (!draft) return;
+    setForm((f) => ({ ...f, ...draft.form }));
+    if (Array.isArray(draft.participants) && draft.participants.length) {
+      setParticipants(draft.participants);
+    }
+    if (draft.step >= 1 && draft.step <= 3) setStep(draft.step);
+  }, [trek]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -119,7 +179,7 @@ function BookingContent() {
         }));
         setProfileFilled(true);
       } catch {
-        // Guest booking — leave fields empty
+        // Guest may browse — payment requires login
       }
     })();
     return () => {
@@ -210,6 +270,15 @@ function BookingContent() {
         return;
       }
 
+      // P1: payment requires authentication — preserve draft and send to login.
+      if (!signedInUser) {
+        saveBookingDraft(trek.id, { form, participants, step: 3 });
+        const from = `${window.location.pathname}${window.location.search || ''}`;
+        router.push(`/login?from=${encodeURIComponent(from)}`);
+        setPaying(false);
+        return;
+      }
+
       const checkoutRes = await fetch('/api/bookings/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -238,6 +307,13 @@ function BookingContent() {
         }),
       });
       const checkoutBody = await checkoutRes.json();
+      if (checkoutRes.status === 401 || checkoutBody.code === 'AUTH_REQUIRED') {
+        saveBookingDraft(trek.id, { form, participants, step: 3 });
+        const from = `${window.location.pathname}${window.location.search || ''}`;
+        router.push(`/login?from=${encodeURIComponent(from)}`);
+        setPaying(false);
+        return;
+      }
       if (!checkoutRes.ok) {
         throw new Error(checkoutBody.error || 'Unable to create booking');
       }
@@ -247,6 +323,8 @@ function BookingContent() {
         checkoutToken: string;
       };
 
+      clearBookingDraft(trek.id);
+
       try {
         sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
       } catch {
@@ -255,7 +333,10 @@ function BookingContent() {
 
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `order:${bookingId}`,
+        },
         credentials: 'include',
         body: JSON.stringify({ bookingId, checkoutToken }),
       });
@@ -661,7 +742,13 @@ function BookingContent() {
                   </>
                 ) : (
                   <>
-                    {step === 1 ? 'Continue to Details' : step === 2 ? 'Review Booking' : `Pay Now · ₹${payableNow.toLocaleString()}`}
+                    {step === 1
+                      ? 'Continue to Details'
+                      : step === 2
+                        ? 'Review Booking'
+                        : !signedInUser
+                          ? 'Sign in to Pay'
+                          : `Pay Now · ₹${payableNow.toLocaleString()}`}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

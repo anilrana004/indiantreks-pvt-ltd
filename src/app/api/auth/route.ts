@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { adminSessionCookieOptions, createAdminSessionToken } from '@/lib/admin/session';
 import { isProductionRuntime } from '@/lib/env/is-production';
+import {
+  ADMIN_LOGIN_LIMIT,
+  clientIp,
+  consumeRateLimit,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
 
 const DEV_ADMIN_EMAIL = 'admin@indiantreks.com';
 const DEV_ADMIN_PASSWORD = 'admin123';
@@ -41,6 +47,11 @@ export async function POST(req: Request) {
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 });
+    }
+
+    const limited = await consumeRateLimit(ADMIN_LOGIN_LIMIT, `${clientIp(req)}:${email.toLowerCase()}`);
+    if (!limited.allowed) {
+      return rateLimitedResponse(limited.retryAfterSec);
     }
 
     if (email === credentials.email && password === credentials.password) {

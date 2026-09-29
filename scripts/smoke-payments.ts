@@ -8,6 +8,8 @@ import {
   verifyWebhookSignature,
 } from '../src/lib/payments/razorpay';
 import { calculateTrustedPayable } from '../src/lib/payments/pricing';
+import { resolveTrustedPickupFeeInr } from '../src/lib/payments/pickup-fees';
+import { treks } from '../src/lib/data';
 
 /**
  * Lightweight security smoke tests for payment helpers.
@@ -63,33 +65,89 @@ function testCheckoutToken() {
   assert.equal(verifyCheckoutToken('wrong', hash), false);
 }
 
+function testPickupFeeAllowlist() {
+  assert.equal(resolveTrustedPickupFeeInr(0), 0);
+  assert.equal(resolveTrustedPickupFeeInr(2000), 2000);
+  assert.equal(resolveTrustedPickupFeeInr(99999), 0);
+  assert.equal(resolveTrustedPickupFeeInr(-100), 0);
+  assert.equal(resolveTrustedPickupFeeInr('2000'), 2000);
+  assert.equal(resolveTrustedPickupFeeInr('not-a-number'), 0);
+  assert.equal(resolveTrustedPickupFeeInr(1500), 0);
+}
+
 function testTrustedPricingIgnoresClientPrice() {
-  // Uses first trek from catalog — amount must come from server tiers
-  const trekId = 'kedarkantha'; // may vary — fall back to any trek via calculateTrustedPayable throw
-  try {
-    const result = calculateTrustedPayable({
-      trekId,
-      packageName: 'Economic',
-      persons: 2,
-      paymentMode: 'deposit',
-      addonIds: [],
-      pickupFeePerPerson: 0,
-      gearLines: [],
-    });
-    assert.ok(result.payablePaise >= 100);
-    assert.equal(result.payablePaise, result.payableRupees * 100);
-  } catch {
-    // If trek id missing in catalog, try generic discovery
-    const { treks } = require('../src/lib/data') as typeof import('../src/lib/data');
-    const trek = treks[0]!;
-    const result = calculateTrustedPayable({
-      trekId: trek.id,
-      packageName: trek.pricing[0]!.name,
-      persons: 1,
-      paymentMode: 'full',
-    });
-    assert.ok(result.payablePaise === result.payableRupees * 100);
-  }
+  const trek = treks.find((t) => t.id === 'kedarkantha') ?? treks[0]!;
+  const packageName = trek.pricing[0]!.name;
+
+  const baseline = calculateTrustedPayable({
+    trekId: trek.id,
+    packageName,
+    persons: 2,
+    paymentMode: 'full',
+    addonIds: [],
+    pickupFeePerPerson: 0,
+    gearLines: [],
+  });
+  assert.ok(baseline.payablePaise >= 100);
+  assert.equal(baseline.payablePaise, baseline.payableRupees * 100);
+
+  const withAllowedPickup = calculateTrustedPayable({
+    trekId: trek.id,
+    packageName,
+    persons: 2,
+    paymentMode: 'full',
+    pickupFeePerPerson: 2000,
+  });
+  assert.equal(
+    withAllowedPickup.payableRupees,
+    baseline.payableRupees + 2000 * 2,
+  );
+
+  const withInjectedPickup = calculateTrustedPayable({
+    trekId: trek.id,
+    packageName,
+    persons: 2,
+    paymentMode: 'full',
+    pickupFeePerPerson: 50_000,
+  });
+  // Inflated client fee must be ignored (clamped to allowlist → 0).
+  assert.equal(withInjectedPickup.payableRupees, baseline.payableRupees);
+}
+
+function testLegacyBookingRouteIsGone() {
+  // Static guard: legacy POST /api/bookings must remain disabled (410).
+  // The route file is the source of truth for this smoke (no HTTP required).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const routePath = path.join(__dirname, '../src/app/api/bookings/route.ts');
+  const src = fs.readFileSync(routePath, 'utf8');
+  assert.match(src, /410/);
+  assert.match(src, /disabled|LEGACY|checkout/i);
+}
+
+function testAuthRequiredGuardsPresent() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const service = fs.readFileSync(
+    path.join(__dirname, '../src/lib/payments/service.ts'),
+    'utf8',
+  );
+  assert.match(service, /Authentication required/);
+  assert.match(service, /status:\s*401/);
+
+  const checkout = fs.readFileSync(
+    path.join(__dirname, '../src/app/api/bookings/checkout/route.ts'),
+    'utf8',
+  );
+  assert.match(checkout, /AUTH_REQUIRED/);
+
+  const createOrder = fs.readFileSync(
+    path.join(__dirname, '../src/app/api/payments/create-order/route.ts'),
+    'utf8',
+  );
+  assert.match(createOrder, /AUTH_REQUIRED/);
 }
 
 function main() {
@@ -97,7 +155,10 @@ function main() {
   testPaymentSignature();
   testWebhookSignature();
   testCheckoutToken();
+  testPickupFeeAllowlist();
   testTrustedPricingIgnoresClientPrice();
+  testLegacyBookingRouteIsGone();
+  testAuthRequiredGuardsPresent();
   console.log('smoke-payments: all checks passed');
 }
 

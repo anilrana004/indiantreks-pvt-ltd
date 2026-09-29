@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MapSelection } from '@/types/trek-map';
 import type { RouteProfile } from '@/lib/treks/route-profile-types';
 import { getTrekGeography } from '@/lib/treks/geography/get-trek-geography';
@@ -69,6 +69,30 @@ export default function TrekRouteMapSection({
   );
 
   const activeDayNum = selectionToDay(selection);
+  const mapMountRef = useRef<HTMLDivElement | null>(null);
+  const [mapVisible, setMapVisible] = useState(false);
+
+  useEffect(() => {
+    const el = mapMountRef.current;
+    if (!el || mapVisible) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setMapVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setMapVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px 0px', threshold: 0.01 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [mapVisible]);
 
   return (
     <div className="kg-route-card">
@@ -160,22 +184,35 @@ export default function TrekRouteMapSection({
       </div>
 
       <div className="kg-route-body">
-        {geography ? (
-          <TrekMap
-            geography={geography}
-            profile={profile}
-            trekTitle={trekTitle}
-            selection={selection}
-            onSelectionChange={onSelectionChange}
-            profileFocusKm={profileFocusKm}
-            onProfileFocusChange={onProfileFocusChange}
-          />
-        ) : (
-          <MapFallback
-            message={`Verified coordinates for this ${kindLabel.toLowerCase()} are not yet mapped.`}
-            detail="Itinerary and altitude chart remain available below."
-          />
-        )}
+        <div ref={mapMountRef}>
+          {geography ? (
+            mapVisible ? (
+              <TrekMap
+                geography={geography}
+                profile={profile}
+                trekTitle={trekTitle}
+                selection={selection}
+                onSelectionChange={onSelectionChange}
+                profileFocusKm={profileFocusKm}
+                onProfileFocusChange={onProfileFocusChange}
+              />
+            ) : (
+              <div
+                className="tm-loading"
+                aria-live="polite"
+                style={{ minHeight: 280, position: 'relative' }}
+              >
+                <span className="tm-loading-pulse" aria-hidden />
+                Map loads when you scroll here…
+              </div>
+            )
+          ) : (
+            <MapFallback
+              message={`Verified coordinates for this ${kindLabel.toLowerCase()} are not yet mapped.`}
+              detail="Itinerary and altitude chart remain available below."
+            />
+          )}
+        </div>
 
         {activePoint && (
           <aside className="kg-route-detail" aria-live="polite">

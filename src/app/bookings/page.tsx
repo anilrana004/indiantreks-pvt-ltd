@@ -71,6 +71,12 @@ export default function BookingsPage() {
       <div className="container mx-auto">
         {/* Header */}
         <div className="mb-6 lg:mb-8">
+          <Link
+            href="/profile"
+            className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-[#16a34a] lg:hidden"
+          >
+            ← Profile
+          </Link>
           <p className="text-[#16a34a] font-semibold text-xs lg:text-sm tracking-[0.2em] uppercase mb-1">My Trips</p>
           <h1 className="text-2xl lg:text-3xl font-bold text-[#000000]">Bookings</h1>
           <p className="text-sm text-gray-500 mt-1">Track upcoming adventures, past trips, and booking status.</p>

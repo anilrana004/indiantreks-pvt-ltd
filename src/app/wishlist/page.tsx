@@ -53,6 +53,12 @@ export default function WishlistPage() {
       <div className="container mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 lg:mb-8">
           <div>
+            <Link
+              href="/profile"
+              className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-[#16a34a] lg:hidden"
+            >
+              ← Profile
+            </Link>
             <p className="text-[#16a34a] font-semibold text-xs lg:text-sm tracking-[0.2em] uppercase mb-1">Saved</p>
             <h1 className="text-2xl lg:text-3xl font-bold text-[#000000]">Wishlist</h1>
             <p className="text-sm text-gray-500 mt-1">

@@ -62,6 +62,19 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     throw new Error('Razorpay is not configured');
   }
 
+  const user = await getCurrentUser();
+  if (!user) {
+    throw Object.assign(new Error('Authentication required'), { status: 401 });
+  }
+
+  // Opportunistic hold cleanup (non-blocking for correctness — also checked on pay)
+  try {
+    const { expireStaleBookingHolds } = await import('@/lib/payments/holds');
+    await expireStaleBookingHolds(50);
+  } catch {
+    /* ignore cleanup errors */
+  }
+
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   const phone = input.phone.trim();
@@ -79,7 +92,6 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     gearLines: input.gearLines,
   });
 
-  const user = await getCurrentUser();
   const checkoutToken = createCheckoutToken();
   const holdMs = paymentHoldMinutes() * 60 * 1000;
   const holdExpiresAt = new Date(Date.now() + holdMs);
@@ -112,7 +124,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
       amount: pricing.payableRupees,
       status: 'pending_payment',
       notes: notesParts.join('\n'),
-      userId: user?.id ?? null,
+      userId: user.id,
       referenceCode: generateBookingReference(),
       city: input.city?.trim() || '',
       participantsJson: JSON.stringify(participants),
@@ -134,7 +146,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     bookingId: row.id,
     referenceCode: row.referenceCode,
     payablePaise: row.payablePaise,
-    userId: user?.id ?? null,
+    userId: user.id,
   });
 
   return {
@@ -158,14 +170,49 @@ async function loadBooking(bookingId: string) {
   return row ?? null;
 }
 
+/** Only server-priced checkout bookings may initiate Razorpay payment. */
+function isTrustedCheckoutBooking(booking: NonNullable<Awaited<ReturnType<typeof loadBooking>>>): boolean {
+  if (!booking.checkoutTokenHash || !booking.payablePaise || booking.payablePaise < 100) {
+    return false;
+  }
+  try {
+    const snap = JSON.parse(booking.pricingSnapshot || '{}') as {
+      trusted?: boolean;
+      source?: string;
+      payablePaise?: number;
+      calculatedAt?: string;
+      trekId?: string;
+    };
+    if (typeof snap.payablePaise !== 'number' || snap.payablePaise !== booking.payablePaise) {
+      return false;
+    }
+    // Current checkout marker
+    if (snap.trusted === true && snap.source === 'checkout') return true;
+    // Pre-P0 server checkout snapshots (still authoritative; not `{}` legacy inserts)
+    if (typeof snap.calculatedAt === 'string' && typeof snap.trekId === 'string') return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function assertBookingPayable(bookingId: string, checkoutToken: string) {
   const booking = await loadBooking(bookingId);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
 
+  if (!isTrustedCheckoutBooking(booking)) {
+    throw Object.assign(new Error('Booking is not eligible for payment'), { status: 403 });
+  }
+
   const user = await getCurrentUser();
+  if (!user) {
+    throw Object.assign(new Error('Authentication required'), { status: 401 });
+  }
+
   const tokenOk = verifyCheckoutToken(checkoutToken, booking.checkoutTokenHash);
-  const ownerOk = Boolean(user && (user.id === booking.userId || user.email.toLowerCase() === booking.email.toLowerCase()));
-  if (!tokenOk && !ownerOk) {
+  const ownerOk =
+    user.id === booking.userId || user.email.toLowerCase() === booking.email.toLowerCase();
+  if (!tokenOk || !ownerOk) {
     throw Object.assign(new Error('Unauthorized'), { status: 403 });
   }
 
@@ -192,97 +239,14 @@ export async function assertBookingPayable(bookingId: string, checkoutToken: str
   return booking;
 }
 
-export async function createRazorpayOrderForBooking(bookingId: string, checkoutToken: string) {
-  const booking = await assertBookingPayable(bookingId, checkoutToken);
-  const db = requireDb();
-
-  // Reuse an open order for this booking when still CREATED (duplicate Pay Now protection)
-  const existing = await db
-    .select()
-    .from(paymentTransactions)
-    .where(
-      and(
-        eq(paymentTransactions.bookingId, booking.id),
-        inArray(paymentTransactions.status, ['created', 'attempted']),
-      ),
-    )
-    .orderBy(desc(paymentTransactions.createdAt))
-    .limit(1);
-
-  if (existing[0] && existing[0].amountPaise === booking.payablePaise) {
-    logPayment('order_reused', {
-      bookingId: booking.id,
-      razorpayOrderId: existing[0].razorpayOrderId,
-      paymentTxId: existing[0].id,
-    });
-    return {
-      bookingId: booking.id,
-      referenceCode: booking.referenceCode,
-      razorpayOrderId: existing[0].razorpayOrderId,
-      amount: booking.payablePaise,
-      currency: booking.currency || 'INR',
-      keyId: getRazorpayKeyId(),
-      name: getMerchantDisplayName(),
-      description: `${booking.trekTitle} · ${booking.referenceCode || booking.id.slice(0, 8)}`,
-      prefill: {
-        name: booking.name,
-        email: booking.email,
-        contact: booking.phone,
-      },
-      theme: { color: getCheckoutThemeColor() },
-      image: getCheckoutLogoUrl(),
-      notes: {
-        bookingId: booking.id,
-        referenceCode: booking.referenceCode || '',
-      },
-    };
-  }
-
-  const razorpay = getRazorpayClient();
-  const receipt = (booking.referenceCode || booking.id).slice(0, 40);
-  const order = await razorpay.orders.create({
-    amount: booking.payablePaise,
-    currency: booking.currency || 'INR',
-    receipt,
-    notes: {
-      bookingId: booking.id,
-      referenceCode: booking.referenceCode || '',
-      trekId: booking.trekId,
-    },
-  });
-
-  const [tx] = await db
-    .insert(paymentTransactions)
-    .values({
-      bookingId: booking.id,
-      razorpayOrderId: order.id,
-      amountPaise: booking.payablePaise,
-      currency: booking.currency || 'INR',
-      status: 'created',
-      updatedAt: new Date(),
-    })
-    .returning();
-
-  await db
-    .update(bookings)
-    .set({
-      status: 'payment_processing',
-      paymentStatus: 'processing',
-      updatedAt: new Date(),
-    })
-    .where(eq(bookings.id, booking.id));
-
-  logPayment('order_created', {
-    bookingId: booking.id,
-    razorpayOrderId: order.id,
-    paymentTxId: tx?.id,
-    amountPaise: booking.payablePaise,
-  });
-
+function orderResponseFromTx(
+  booking: NonNullable<Awaited<ReturnType<typeof loadBooking>>>,
+  tx: { razorpayOrderId: string; id: string },
+) {
   return {
     bookingId: booking.id,
     referenceCode: booking.referenceCode,
-    razorpayOrderId: order.id,
+    razorpayOrderId: tx.razorpayOrderId,
     amount: booking.payablePaise,
     currency: booking.currency || 'INR',
     keyId: getRazorpayKeyId(),
@@ -300,6 +264,143 @@ export async function createRazorpayOrderForBooking(bookingId: string, checkoutT
       referenceCode: booking.referenceCode || '',
     },
   };
+}
+
+export async function createRazorpayOrderForBooking(
+  bookingId: string,
+  checkoutToken: string,
+  opts?: { idempotencyKey?: string },
+) {
+  const booking = await assertBookingPayable(bookingId, checkoutToken);
+  const db = requireDb();
+  const idempotencyKey =
+    opts?.idempotencyKey?.trim() || `order:${booking.id}:${booking.payablePaise}`;
+
+  // Lock booking row + reuse open order / idempotency key before calling Razorpay.
+  const locked = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(bookings)
+      .where(eq(bookings.id, booking.id))
+      .for('update')
+      .limit(1);
+
+    if (!row) throw Object.assign(new Error('Booking not found'), { status: 404 });
+    if (row.status === 'confirmed' || row.paymentStatus === 'paid') {
+      throw Object.assign(new Error('Booking already paid'), { status: 409 });
+    }
+    if (row.holdExpiresAt && row.holdExpiresAt.getTime() < Date.now()) {
+      await tx
+        .update(bookings)
+        .set({ status: 'expired', paymentStatus: 'failed', updatedAt: new Date() })
+        .where(eq(bookings.id, row.id));
+      throw Object.assign(new Error('Booking payment window expired'), { status: 409 });
+    }
+
+    const [byKey] = await tx
+      .select()
+      .from(paymentTransactions)
+      .where(eq(paymentTransactions.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (byKey && byKey.amountPaise === row.payablePaise && byKey.razorpayOrderId) {
+      return { kind: 'reuse' as const, booking: row, tx: byKey };
+    }
+
+    const [existing] = await tx
+      .select()
+      .from(paymentTransactions)
+      .where(
+        and(
+          eq(paymentTransactions.bookingId, row.id),
+          inArray(paymentTransactions.status, ['created', 'attempted']),
+        ),
+      )
+      .orderBy(desc(paymentTransactions.createdAt))
+      .limit(1);
+
+    if (existing && existing.amountPaise === row.payablePaise) {
+      return { kind: 'reuse' as const, booking: row, tx: existing };
+    }
+
+    await tx
+      .update(bookings)
+      .set({
+        status: 'payment_processing',
+        paymentStatus: 'processing',
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, row.id));
+
+    return { kind: 'create' as const, booking: row };
+  });
+
+  if (locked.kind === 'reuse') {
+    logPayment('order_reused', {
+      bookingId: locked.booking.id,
+      razorpayOrderId: locked.tx.razorpayOrderId,
+      paymentTxId: locked.tx.id,
+      idempotencyKey,
+    });
+    return orderResponseFromTx(locked.booking, locked.tx);
+  }
+
+  const razorpay = getRazorpayClient();
+  const receipt = (locked.booking.referenceCode || locked.booking.id).slice(0, 40);
+  const order = await razorpay.orders.create({
+    amount: locked.booking.payablePaise,
+    currency: locked.booking.currency || 'INR',
+    receipt,
+    notes: {
+      bookingId: locked.booking.id,
+      referenceCode: locked.booking.referenceCode || '',
+      trekId: locked.booking.trekId,
+      idempotencyKey,
+    },
+  });
+
+  try {
+    const [txRow] = await db
+      .insert(paymentTransactions)
+      .values({
+        bookingId: locked.booking.id,
+        razorpayOrderId: order.id,
+        amountPaise: locked.booking.payablePaise,
+        currency: locked.booking.currency || 'INR',
+        status: 'created',
+        idempotencyKey,
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    logPayment('order_created', {
+      bookingId: locked.booking.id,
+      razorpayOrderId: order.id,
+      paymentTxId: txRow?.id,
+      amountPaise: locked.booking.payablePaise,
+      idempotencyKey,
+    });
+
+    return orderResponseFromTx(locked.booking, {
+      razorpayOrderId: order.id,
+      id: txRow?.id || '',
+    });
+  } catch (err) {
+    // Concurrent insert on same idempotency key — return the winner.
+    const [winner] = await db
+      .select()
+      .from(paymentTransactions)
+      .where(eq(paymentTransactions.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (winner) {
+      logPayment('order_idempotent_race', {
+        bookingId: locked.booking.id,
+        razorpayOrderId: winner.razorpayOrderId,
+        paymentTxId: winner.id,
+      });
+      return orderResponseFromTx(locked.booking, winner);
+    }
+    throw err;
+  }
 }
 
 async function markBookingPaid(opts: {
@@ -360,18 +461,62 @@ async function markBookingPaid(opts: {
 }
 
 async function maybeSendBookingConfirmationEmail(bookingId: string) {
-  // Email provider not wired. Keep booking paid; mark status for retry worker.
-  if (!process.env.SMTP_HOST && !process.env.RESEND_API_KEY) {
+  const booking = await loadBooking(bookingId);
+  if (!booking) return;
+
+  const {
+    isTransactionalEmailConfigured,
+    sendTransactionalEmail,
+    bookingConfirmationEmailHtml,
+  } = await import('@/lib/email/brevo');
+
+  if (!isTransactionalEmailConfigured()) {
     await requireDb()
       .update(bookings)
       .set({ emailStatus: 'not_configured', updatedAt: new Date() })
       .where(eq(bookings.id, bookingId));
     return;
   }
-  // Future: send via SMTP/Resend. Placeholder keeps payment/booking intact.
+
   await requireDb()
     .update(bookings)
     .set({ emailStatus: 'pending', updatedAt: new Date() })
+    .where(eq(bookings.id, bookingId));
+
+  const payableRupees = Math.floor((booking.payablePaise || 0) / 100);
+  const result = await sendTransactionalEmail({
+    toEmail: booking.email,
+    toName: booking.name,
+    subject: `Booking confirmed — ${booking.trekTitle} (${booking.referenceCode || booking.id.slice(0, 8)})`,
+    html: bookingConfirmationEmailHtml({
+      name: booking.name,
+      trekTitle: booking.trekTitle,
+      referenceCode: booking.referenceCode || booking.id.slice(0, 8),
+      date: booking.date,
+      payableRupees,
+      persons: booking.persons,
+    }),
+    text: `Hi ${booking.name}, your ${booking.trekTitle} booking ${booking.referenceCode || ''} is confirmed.`,
+    tags: ['booking-confirmation'],
+  });
+
+  if (!result.ok) {
+    await requireDb()
+      .update(bookings)
+      .set({
+        emailStatus: result.reason === 'not_configured' ? 'not_configured' : 'failed',
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, bookingId));
+    if (result.reason !== 'not_configured') {
+      throw new Error(result.detail || 'email_send_failed');
+    }
+    return;
+  }
+
+  await requireDb()
+    .update(bookings)
+    .set({ emailStatus: 'sent', updatedAt: new Date() })
     .where(eq(bookings.id, bookingId));
 }
 
@@ -385,14 +530,18 @@ export async function verifyAndConfirmPayment(input: {
   const bookingRow = await loadBooking(input.bookingId);
   if (!bookingRow) throw Object.assign(new Error('Booking not found'), { status: 404 });
 
+  if (!isTrustedCheckoutBooking(bookingRow)) {
+    throw Object.assign(new Error('Booking is not eligible for payment'), { status: 403 });
+  }
+
   const user = await getCurrentUser();
+  if (!user) {
+    throw Object.assign(new Error('Authentication required'), { status: 401 });
+  }
   const tokenOk = verifyCheckoutToken(input.checkoutToken, bookingRow.checkoutTokenHash);
-  const ownerOk = Boolean(
-    user &&
-      (user.id === bookingRow.userId ||
-        user.email.toLowerCase() === bookingRow.email.toLowerCase()),
-  );
-  if (!tokenOk && !ownerOk) {
+  const ownerOk =
+    user.id === bookingRow.userId || user.email.toLowerCase() === bookingRow.email.toLowerCase();
+  if (!tokenOk || !ownerOk) {
     throw Object.assign(new Error('Unauthorized'), { status: 403 });
   }
 
@@ -500,6 +649,22 @@ export async function markPaymentFailed(opts: {
   const db = requireDb();
   const now = new Date();
 
+  const booking = await loadBooking(opts.bookingId);
+  // Never overwrite a completed paid booking with a late/duplicate failure event.
+  if (
+    booking &&
+    (booking.paymentStatus === 'paid' ||
+      booking.paymentStatus === 'refunded' ||
+      booking.paymentStatus === 'partially_refunded' ||
+      booking.paymentStatus === 'refund_pending')
+  ) {
+    logPayment('webhook_ignore_failed_after_paid', {
+      bookingId: opts.bookingId,
+      paymentStatus: booking.paymentStatus,
+    });
+    return { ignored: true as const };
+  }
+
   if (opts.razorpayOrderId) {
     await db
       .update(paymentTransactions)
@@ -520,6 +685,8 @@ export async function markPaymentFailed(opts: {
       updatedAt: now,
     })
     .where(eq(bookings.id, opts.bookingId));
+
+  return { ignored: false as const };
 }
 
 export async function confirmFromWebhookPayment(opts: {

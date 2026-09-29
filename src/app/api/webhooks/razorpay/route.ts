@@ -13,9 +13,88 @@ export const runtime = 'nodejs';
 
 const { paymentWebhookEvents, paymentTransactions } = schema;
 
+async function processWebhookEvent(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  payload: {
+    event?: string;
+    payload?: {
+      payment?: { entity?: Record<string, unknown> };
+      order?: { entity?: Record<string, unknown> };
+    };
+  },
+) {
+  const eventType = String(payload.event || '');
+
+  if (eventType === 'payment.captured' || eventType === 'payment.failed') {
+    const entity = payload.payload?.payment?.entity;
+    if (!entity) throw new Error('Missing payment entity');
+
+    const razorpayPaymentId = String(entity.id || '');
+    const razorpayOrderId = String(entity.order_id || '');
+    const amountPaise = Number(entity.amount || 0);
+    const currency = String(entity.currency || 'INR');
+    const method = entity.method ? String(entity.method) : null;
+    const status = String(
+      entity.status || (eventType === 'payment.captured' ? 'captured' : 'failed'),
+    );
+
+    if (eventType === 'payment.failed') {
+      const [tx] = await db
+        .select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.razorpayOrderId, razorpayOrderId))
+        .limit(1);
+      if (tx) {
+        await markPaymentFailed({
+          bookingId: tx.bookingId,
+          razorpayOrderId,
+          reason: String(entity.error_description || 'payment_failed'),
+        });
+      }
+      return;
+    }
+
+    await confirmFromWebhookPayment({
+      razorpayOrderId,
+      razorpayPaymentId,
+      amountPaise,
+      currency,
+      method,
+      status,
+    });
+    return;
+  }
+
+  if (eventType === 'order.paid') {
+    const entity = payload.payload?.order?.entity;
+    if (!entity) return;
+    const razorpayOrderId = String(entity.id || '');
+    const amountPaise = Number(entity.amount_paid || entity.amount || 0);
+    const currency = String(entity.currency || 'INR');
+    const [tx] = await db
+      .select()
+      .from(paymentTransactions)
+      .where(eq(paymentTransactions.razorpayOrderId, razorpayOrderId))
+      .limit(1);
+    if (tx?.razorpayPaymentId) {
+      await confirmFromWebhookPayment({
+        razorpayOrderId,
+        razorpayPaymentId: tx.razorpayPaymentId,
+        amountPaise,
+        currency,
+        method: tx.method,
+        status: 'captured',
+      });
+    }
+  }
+}
+
 /**
  * Razorpay webhooks — signature over RAW body. Do not parse JSON before verify.
  * Intentionally NOT aggressively rate-limited (Razorpay retries during spikes).
+ *
+ * Idempotency: event id is unique. Failed processing leaves processed=false so
+ * Razorpay retries re-run the handler instead of being treated as duplicates.
  */
 export async function POST(req: NextRequest) {
   if (!isDbConfigured()) return dbUnavailableResponse();
@@ -51,7 +130,7 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   if (!db) return dbUnavailableResponse();
 
-  // Idempotency: insert event id; if conflict, already processed
+  let isRetry = false;
   try {
     await db.insert(paymentWebhookEvents).values({
       eventId,
@@ -60,87 +139,40 @@ export async function POST(req: NextRequest) {
       processed: false,
     });
   } catch {
-    return NextResponse.json({ ok: true, duplicate: true });
+    const [existing] = await db
+      .select()
+      .from(paymentWebhookEvents)
+      .where(eq(paymentWebhookEvents.eventId, eventId))
+      .limit(1);
+
+    if (existing?.processed) {
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
+    // Prior attempt failed — reprocess instead of silently acknowledging.
+    isRetry = true;
   }
 
   try {
-    if (eventType === 'payment.captured' || eventType === 'payment.failed') {
-      const entity = payload.payload?.payment?.entity;
-      if (!entity) throw new Error('Missing payment entity');
-
-      const razorpayPaymentId = String(entity.id || '');
-      const razorpayOrderId = String(entity.order_id || '');
-      const amountPaise = Number(entity.amount || 0);
-      const currency = String(entity.currency || 'INR');
-      const method = entity.method ? String(entity.method) : null;
-      const status = String(entity.status || (eventType === 'payment.captured' ? 'captured' : 'failed'));
-
-      if (eventType === 'payment.failed') {
-        const [tx] = await db
-          .select()
-          .from(paymentTransactions)
-          .where(eq(paymentTransactions.razorpayOrderId, razorpayOrderId))
-          .limit(1);
-        if (tx) {
-          await markPaymentFailed({
-            bookingId: tx.bookingId,
-            razorpayOrderId,
-            reason: String(entity.error_description || 'payment_failed'),
-          });
-        }
-      } else {
-        await confirmFromWebhookPayment({
-          razorpayOrderId,
-          razorpayPaymentId,
-          amountPaise,
-          currency,
-          method,
-          status,
-        });
-      }
-    } else if (eventType === 'order.paid') {
-      const entity = payload.payload?.order?.entity;
-      if (entity) {
-        const razorpayOrderId = String(entity.id || '');
-        const amountPaise = Number(entity.amount_paid || entity.amount || 0);
-        const currency = String(entity.currency || 'INR');
-        // order.paid may not include payment id — rely on existing payment.captured when possible
-        const [tx] = await db
-          .select()
-          .from(paymentTransactions)
-          .where(eq(paymentTransactions.razorpayOrderId, razorpayOrderId))
-          .limit(1);
-        if (tx?.razorpayPaymentId) {
-          await confirmFromWebhookPayment({
-            razorpayOrderId,
-            razorpayPaymentId: tx.razorpayPaymentId,
-            amountPaise,
-            currency,
-            method: tx.method,
-            status: 'captured',
-          });
-        }
-      }
-    }
+    await processWebhookEvent(db, payload);
 
     await db
       .update(paymentWebhookEvents)
-      .set({ processed: true, processedAt: new Date() })
+      .set({
+        processed: true,
+        processingError: null,
+        processedAt: new Date(),
+      })
       .where(eq(paymentWebhookEvents.eventId, eventId));
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, retry: isRetry || undefined });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'processing_error';
     await db
       .update(paymentWebhookEvents)
-      .set({ processingError: message, processedAt: new Date() })
+      .set({ processingError: message, processedAt: new Date(), processed: false })
       .where(eq(paymentWebhookEvents.eventId, eventId));
     console.error(JSON.stringify({ scope: 'payments', event: 'webhook_process_error', message }));
-    // Return 200 after signature OK so Razorpay doesn't storm retries for app bugs;
-    // unprocessed rows can be retried by ops. For transient DB errors, prefer 500.
-    if (/DATABASE|timeout|ECONN/i.test(message)) {
-      return NextResponse.json({ error: 'temporary failure' }, { status: 500 });
-    }
-    return NextResponse.json({ ok: false, error: 'processing_error' });
+    // Ask Razorpay to retry; processed stays false so retries re-run.
+    return NextResponse.json({ error: 'temporary failure' }, { status: 500 });
   }
 }

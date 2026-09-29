@@ -7,10 +7,16 @@ import {
 } from '@/lib/user-auth/service';
 import { createUserSessionToken, userSessionCookieOptions } from '@/lib/user-auth/session';
 import { validateRegisterBody } from '@/lib/user-auth/validation';
+import {
+  AUTH_REGISTER_LIMIT,
+  clientIp,
+  consumeRateLimit,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
 
 function clientMeta(req: Request) {
   return {
-    ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+    ip: clientIp(req),
     userAgent: req.headers.get('user-agent'),
   };
 }
@@ -24,6 +30,11 @@ export async function POST(req: Request) {
       },
       { status: 503 },
     );
+  }
+
+  const limited = await consumeRateLimit(AUTH_REGISTER_LIMIT, clientIp(req));
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited.retryAfterSec);
   }
 
   try {

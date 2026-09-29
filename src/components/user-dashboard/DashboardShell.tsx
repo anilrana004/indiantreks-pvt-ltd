@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  CalendarCheck,
   CalendarDays,
   Compass,
+  Heart,
   LogOut,
   Mountain,
   UserRound,
@@ -15,6 +17,8 @@ import { USER_TOKEN_STORAGE_KEY } from '@/lib/user-auth/constants';
 
 const NAV = [
   { href: '/user-dashboard', label: 'Overview', icon: Compass },
+  { href: '/bookings', label: 'Bookings', icon: CalendarCheck },
+  { href: '/wishlist', label: 'Wishlist', icon: Heart },
   { href: '/user-dashboard/upcoming-treks', label: 'Upcoming treks', icon: CalendarDays },
   { href: '/user-dashboard/past-treks', label: 'Past treks', icon: Mountain },
   { href: '/user-dashboard/profile', label: 'Profile', icon: UserRound },
@@ -90,7 +94,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
           <nav className="h-fit rounded-2xl border border-[#d8e8dc] bg-white p-3">
             {NAV.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href;
+              const active =
+                href === '/user-dashboard'
+                  ? pathname === href
+                  : pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link
                   key={href}

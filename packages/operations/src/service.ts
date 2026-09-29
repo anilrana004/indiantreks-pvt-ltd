@@ -111,25 +111,9 @@ export async function listBookings(): Promise<Booking[]> {
   return rows.map(toBooking);
 }
 
-export async function createBooking(input: CreateBookingInput): Promise<Booking> {
-  const [row] = await requireDb()
-    .insert(bookings)
-    .values({
-      trekId: input.trekId,
-      trekTitle: input.trekTitle,
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
-      package: input.package,
-      persons: input.persons,
-      date: input.date,
-      payment: input.payment,
-      amount: input.amount,
-      status: input.status ?? 'pending',
-      notes: input.notes,
-    })
-    .returning();
-  return toBooking(row!);
+export async function createBooking(_input: CreateBookingInput): Promise<Booking> {
+  // P0: client-priced creates are permanently disabled. Use trusted checkout on the storefront.
+  throw new Error('LEGACY_BOOKING_DISABLED: use /api/bookings/checkout');
 }
 
 export async function updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | null> {

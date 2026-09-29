@@ -3,30 +3,52 @@ import { photos } from '@/lib/media';
 import { cloudinaryAssetUrl } from '@/lib/cloudinary';
 
 /**
- * Kedarkantha winter pre-sell creative.
- * Native ~2172×724 (≈3:1). Delivered padded to the strip ratio so the slide
- * fills the box edge-to-edge without letterbox bars; artwork stays intact.
+ * Designed strip creatives are ~3:1 (e.g. 2170×725).
+ * Pad to the promo-frame ratio so `fillFrame` covers edge-to-edge with no gray bars.
  */
-const KEDARKANTHA_WINTER_BANNER_PATH =
-  'v1788533034/ChatGPT_Image_Sep_4_2026_08_13_25_PM.png';
+function designedStripBanner(assetPath: string, background: string) {
+  return {
+    mobile: cloudinaryAssetUrl(assetPath, {
+      w: 1200,
+      h: 480,
+      crop: 'pad',
+      gravity: 'center',
+      background,
+    }),
+    desktop: cloudinaryAssetUrl(assetPath, {
+      w: 1920,
+      h: 400,
+      crop: 'pad',
+      gravity: 'center',
+      background,
+    }),
+  };
+}
 
-/** Mobile/tablet strip (~2.5:1 at 160–200px tall). */
-const kedarkanthaWinterBannerMobile = cloudinaryAssetUrl(KEDARKANTHA_WINTER_BANNER_PATH, {
-  w: 1200,
-  h: 480,
-  crop: 'pad',
-  gravity: 'center',
-  background: 'rgb:8eb4dc',
-});
+/** India's Best Winter Treks — homepage explore slide 1. */
+const winterTreksBanner = designedStripBanner(
+  'v1790619095/ChatGPT_Image_Sep_28_2026_11_40_23_PM.png',
+  'rgb:c8d8e8',
+);
 
-/** Desktop strip (~4.8:1 at 240px tall) — matches 1920×400 ideal. */
-const kedarkanthaWinterBannerDesktop = cloudinaryAssetUrl(KEDARKANTHA_WINTER_BANNER_PATH, {
-  w: 1920,
-  h: 400,
-  crop: 'pad',
-  gravity: 'center',
-  background: 'rgb:8eb4dc',
-});
+/**
+ * Kedarkantha winter pre-sell creative.
+ * Native ~2172×724 (≈3:1).
+ */
+const kedarkanthaWinterBanner = designedStripBanner(
+  'v1788533034/ChatGPT_Image_Sep_4_2026_08_13_25_PM.png',
+  'rgb:8eb4dc',
+);
+
+/** Shared winter-treks designed promo (hero mobile strip + homepage explore). */
+export const WINTER_TREKS_PROMO_BANNER: BannerItem = {
+  src: winterTreksBanner.mobile,
+  desktopSrc: winterTreksBanner.desktop,
+  href: '/treks?season=winter',
+  title: "India's Best Winter Treks",
+  designed: true,
+  fillFrame: true,
+};
 
 export type HomeBannerGroup =
   | 'explore'
@@ -39,15 +61,10 @@ export type HomeBannerGroup =
 
 export const HOME_BANNERS: Record<HomeBannerGroup, BannerItem[]> = {
   explore: [
+    WINTER_TREKS_PROMO_BANNER,
     {
-      src: photos.choptaSale,
-      href: '/treks/chopta-tungnath',
-      title: 'Chopta Tungnath Chandrashila',
-      designed: true,
-    },
-    {
-      src: kedarkanthaWinterBannerMobile,
-      desktopSrc: kedarkanthaWinterBannerDesktop,
+      src: kedarkanthaWinterBanner.mobile,
+      desktopSrc: kedarkanthaWinterBanner.desktop,
       href: '/treks?season=winter',
       title: 'Kedarkantha Trek — Pre Sell · Flat 10% Off',
       designed: true,

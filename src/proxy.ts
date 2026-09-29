@@ -15,14 +15,24 @@ async function isUserAuthenticatedFromRequest(request: NextRequest): Promise<boo
 }
 
 export async function proxy(request: NextRequest) {
+  const requestId =
+    request.headers.get('x-request-id')?.trim() ||
+    request.headers.get('cf-ray')?.trim() ||
+    `req_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+
   const { pathname } = request.nextUrl;
   const role = getAppRole();
 
+  const withRequestId = (res: NextResponse) => {
+    res.headers.set('x-request-id', requestId);
+    return res;
+  };
+
   if (isBlockedForRole(pathname, role)) {
     if (role === 'admin' && pathname === '/') {
-      return NextResponse.redirect(new URL(`${ADMIN_PREFIX}/login`, request.url));
+      return withRequestId(NextResponse.redirect(new URL(`${ADMIN_PREFIX}/login`, request.url)));
     }
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return withRequestId(NextResponse.json({ error: 'Not found' }, { status: 404 }));
   }
 
   // Customer member area — require signed-in user session (does not affect admin).
@@ -30,33 +40,33 @@ export async function proxy(request: NextRequest) {
     if (!(await isUserAuthenticatedFromRequest(request))) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('from', pathname);
-      return NextResponse.redirect(loginUrl);
+      return withRequestId(NextResponse.redirect(loginUrl));
     }
-    return NextResponse.next();
+    return withRequestId(NextResponse.next());
   }
 
   if (!isAdminUiPath(pathname) && !pathname.startsWith('/api/admin')) {
-    return NextResponse.next();
+    return withRequestId(NextResponse.next());
   }
 
   if (pathname.startsWith('/api/admin')) {
     if (!(await isAdminAuthenticatedFromRequest(request))) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return withRequestId(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
     }
-    return NextResponse.next();
+    return withRequestId(NextResponse.next());
   }
 
   if (pathname.startsWith(`${ADMIN_PREFIX}/login`)) {
-    return NextResponse.next();
+    return withRequestId(NextResponse.next());
   }
 
   if (!(await isAdminAuthenticatedFromRequest(request))) {
     const loginUrl = new URL(`${ADMIN_PREFIX}/login`, request.url);
     loginUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(loginUrl);
+    return withRequestId(NextResponse.redirect(loginUrl));
   }
 
-  return NextResponse.next();
+  return withRequestId(NextResponse.next());
 }
 
 export const config = {

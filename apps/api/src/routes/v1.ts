@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { isDbConfigured } from '@indiantreks/db';
 import {
-  createBooking,
   createContact,
   addSubscriber,
   listBookings,
@@ -39,35 +38,12 @@ function dbGuard() {
 // --- Public ---
 
 v1.post('/bookings', async (c) => {
-  const blocked = dbGuard();
-  if (blocked) return blocked;
-
-  try {
-    const body = await c.req.json();
-    const { trekId, trekTitle, name, email, phone, package: pkg, persons, date, payment, amount, notes } = body;
-
-    if (!name || !email || !phone || !trekId) {
-      return apiError('VALIDATION_ERROR', 'Missing required fields: name, email, phone, trekId', 400);
-    }
-
-    const booking = await createBooking({
-      trekId,
-      trekTitle: trekTitle ?? trekId,
-      name,
-      email,
-      phone,
-      package: pkg || 'Standard',
-      persons: persons || 1,
-      date: date || '',
-      payment: payment || 'deposit',
-      amount: amount || 0,
-      notes: notes || '',
-    });
-
-    return apiSuccess(booking, 201);
-  } catch {
-    return apiError('VALIDATION_ERROR', 'Invalid booking request', 400);
-  }
+  // P0: legacy client-priced booking create is disabled (same as Next /api/bookings).
+  return apiError(
+    'GONE',
+    'This booking endpoint is disabled. Use the storefront checkout flow.',
+    410,
+  );
 });
 
 v1.post('/contacts', async (c) => {
