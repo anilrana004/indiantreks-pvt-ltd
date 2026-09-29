@@ -8,7 +8,6 @@ import { Loader, XCircle } from 'lucide-react';
 function FailedContent() {
   const sp = useSearchParams();
   const bookingId = sp.get('bookingId') || '';
-  const token = sp.get('token') || '';
   const reason = sp.get('reason') || 'Payment was not completed.';
 
   return (
@@ -27,9 +26,9 @@ function FailedContent() {
             <Link href="/treks" className="rounded-full bg-[#16a34a] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#15803d]">
               Return to treks
             </Link>
-            {bookingId && token ? (
+            {bookingId ? (
               <Link
-                href={`/booking/success?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(token)}`}
+                href={`/booking/success?bookingId=${encodeURIComponent(bookingId)}`}
                 className="rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
                 Check payment status

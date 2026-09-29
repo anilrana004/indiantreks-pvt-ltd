@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { MessageSquare, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, X } from 'lucide-react';
 import {
   fetchAdminContacts,
   patchContactStatus,
@@ -16,32 +16,50 @@ import AdminPageHeader from '@/components/admin/ui/AdminPageHeader';
 import AdminSearchInput from '@/components/admin/ui/AdminSearchInput';
 import { AdminTableHead, AdminTd, AdminTh, AdminTr, AdminTableWrap } from '@/components/admin/ui/AdminTable';
 
+const PAGE_SIZE = 25;
+
 export default function AdminContacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [dbUnavailable, setDbUnavailable] = useState(false);
   const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Contact | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setDbUnavailable(false);
     try {
-      setContacts(await fetchAdminContacts());
+      const result = await fetchAdminContacts({
+        page,
+        pageSize: PAGE_SIZE,
+        q: query,
+      });
+      setContacts(result.contacts);
+      setTotal(result.total);
+      setTotalPages(result.totalPages);
+      setPage(result.page);
     } catch {
       setDbUnavailable(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, query]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const filtered = contacts.filter(
-    (ct) => ct.name.toLowerCase().includes(search.toLowerCase()) || ct.email.includes(search),
-  );
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setPage(1);
+      setQuery(search.trim());
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   const markRead = async (msg: Contact) => {
     if (msg.status === 'new') {
@@ -56,7 +74,7 @@ export default function AdminContacts() {
     await load();
   };
 
-  if (loading) return <AdminLoading label="Loading messages…" />;
+  if (loading && contacts.length === 0) return <AdminLoading label="Loading messages…" />;
   if (dbUnavailable) return <AdminDbUnavailable onRetry={load} />;
 
   return (
@@ -64,7 +82,7 @@ export default function AdminContacts() {
       <AdminPageHeader
         breadcrumb="Operations"
         title="Contact messages"
-        description={`${contacts.length} inbound messages`}
+        description={`${total} inbound messages`}
         actions={
           <AdminSearchInput
             placeholder="Search name or email…"
@@ -77,40 +95,67 @@ export default function AdminContacts() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <AdminCard padding={false} className={`${selected ? 'hidden lg:block' : ''} lg:col-span-2`}>
-          {filtered.length === 0 ? (
+          {contacts.length === 0 ? (
             <AdminEmptyState icon={MessageSquare} title="No messages" />
           ) : (
-            <AdminTableWrap>
-              <AdminTableHead>
-                <AdminTh>Name</AdminTh>
-                <AdminTh>Email</AdminTh>
-                <AdminTh>Message</AdminTh>
-                <AdminTh>Status</AdminTh>
-                <AdminTh>Date</AdminTh>
-              </AdminTableHead>
-              <tbody>
-                {filtered.map((msg) => (
-                  <AdminTr key={msg.id} className="cursor-pointer" onClick={() => markRead(msg)}>
-                    <AdminTd className="font-medium text-slate-800">
-                      <span className="inline-flex items-center gap-2">
-                        {msg.status === 'new' ? (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                        ) : null}
-                        {msg.name}
-                      </span>
-                    </AdminTd>
-                    <AdminTd className="text-slate-600">{msg.email}</AdminTd>
-                    <AdminTd className="max-w-xs truncate text-slate-600">{msg.message}</AdminTd>
-                    <AdminTd>
-                      <AdminBadge variant={statusToBadge(msg.status)}>{msg.status}</AdminBadge>
-                    </AdminTd>
-                    <AdminTd className="text-xs text-slate-500">
-                      {new Date(msg.createdAt).toLocaleDateString()}
-                    </AdminTd>
-                  </AdminTr>
-                ))}
-              </tbody>
-            </AdminTableWrap>
+            <>
+              <AdminTableWrap>
+                <AdminTableHead>
+                  <AdminTh>Name</AdminTh>
+                  <AdminTh>Email</AdminTh>
+                  <AdminTh>Message</AdminTh>
+                  <AdminTh>Status</AdminTh>
+                  <AdminTh>Date</AdminTh>
+                </AdminTableHead>
+                <tbody>
+                  {contacts.map((msg) => (
+                    <AdminTr key={msg.id} className="cursor-pointer" onClick={() => markRead(msg)}>
+                      <AdminTd className="font-medium text-slate-800">
+                        <span className="inline-flex items-center gap-2">
+                          {msg.status === 'new' ? (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                          ) : null}
+                          {msg.name}
+                        </span>
+                      </AdminTd>
+                      <AdminTd className="text-slate-600">{msg.email}</AdminTd>
+                      <AdminTd className="max-w-xs truncate text-slate-600">{msg.message}</AdminTd>
+                      <AdminTd>
+                        <AdminBadge variant={statusToBadge(msg.status)}>{msg.status}</AdminBadge>
+                      </AdminTd>
+                      <AdminTd className="text-xs text-slate-500">
+                        {new Date(msg.createdAt).toLocaleDateString()}
+                      </AdminTd>
+                    </AdminTr>
+                  ))}
+                </tbody>
+              </AdminTableWrap>
+
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500">
+                  Page {page} of {totalPages}
+                  {loading ? ' · refreshing…' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    Next <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </AdminCard>
 

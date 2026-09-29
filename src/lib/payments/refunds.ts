@@ -1,8 +1,14 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '@/lib/db';
 import { getRazorpayClient } from '@/lib/payments/razorpay';
+import type { BookingPaymentStatus, BookingStatus, PaymentTxStatus } from '@/lib/operations/types';
+import {
+  assertBookingStatusTransition,
+  assertPaymentStatusTransition,
+  assertPaymentTxTransition,
+} from '@/lib/bookings/state-machine';
 
-const { bookings, paymentTransactions, paymentRefunds } = schema;
+const { bookings, paymentTransactions, paymentRefunds, bookingStatusHistory } = schema;
 
 function requireDb() {
   const db = getDb();
@@ -88,7 +94,8 @@ export async function initiateRefund(input: {
         razorpayRefundId: prior.razorpayRefundId,
         amountPaise,
         full: amountPaise === paymentTx.amountPaise,
-        duplicate: true,
+        duplicate: true as const,
+        bookingId: booking.id,
       };
     }
 
@@ -107,6 +114,12 @@ export async function initiateRefund(input: {
             })
             .returning();
 
+    assertPaymentStatusTransition(
+      booking.paymentStatus as BookingPaymentStatus,
+      'refund_pending',
+    );
+    assertPaymentTxTransition(paymentTx.status as PaymentTxStatus, 'refund_pending');
+
     await tx
       .update(bookings)
       .set({ paymentStatus: 'refund_pending', updatedAt: new Date() })
@@ -116,6 +129,16 @@ export async function initiateRefund(input: {
       .update(paymentTransactions)
       .set({ status: 'refund_pending', updatedAt: new Date() })
       .where(eq(paymentTransactions.id, paymentTx.id));
+
+    await tx.insert(bookingStatusHistory).values({
+      bookingId: booking.id,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      fromPaymentStatus: booking.paymentStatus,
+      toPaymentStatus: 'refund_pending',
+      reason: input.reason || 'refund_initiated',
+      actor: 'admin',
+    });
 
     const razorpay = getRazorpayClient();
     let refund: { id?: string };
@@ -138,6 +161,15 @@ export async function initiateRefund(input: {
 
     const full = amountPaise === paymentTx.amountPaise;
     const razorpayRefundId = String(refund.id || '');
+    const nextPaymentStatus = full ? 'refunded' : 'partially_refunded';
+    const nextBookingStatus = full ? 'cancelled' : (booking.status as BookingStatus);
+    const nextTxStatus = full ? 'refunded' : 'partially_refunded';
+
+    assertPaymentStatusTransition('refund_pending', nextPaymentStatus);
+    assertPaymentTxTransition('refund_pending', nextTxStatus);
+    if (full) {
+      assertBookingStatusTransition(booking.status as BookingStatus, 'cancelled');
+    }
 
     await tx
       .update(paymentRefunds)
@@ -151,22 +183,48 @@ export async function initiateRefund(input: {
     await tx
       .update(bookings)
       .set({
-        paymentStatus: full ? 'refunded' : 'partially_refunded',
-        status: full ? 'cancelled' : booking.status,
+        paymentStatus: nextPaymentStatus,
+        status: nextBookingStatus,
         updatedAt: new Date(),
       })
       .where(eq(bookings.id, booking.id));
 
     await tx
       .update(paymentTransactions)
-      .set({ status: full ? 'refunded' : 'partially_refunded', updatedAt: new Date() })
+      .set({ status: nextTxStatus, updatedAt: new Date() })
       .where(eq(paymentTransactions.id, paymentTx.id));
+
+    await tx.insert(bookingStatusHistory).values({
+      bookingId: booking.id,
+      fromStatus: booking.status,
+      toStatus: nextBookingStatus,
+      fromPaymentStatus: 'refund_pending',
+      toPaymentStatus: nextPaymentStatus,
+      reason: input.reason || 'refund_processed',
+      actor: 'admin',
+    });
 
     return {
       refundId: refundRow!.id,
       razorpayRefundId: razorpayRefundId || null,
       amountPaise,
       full,
+      bookingId: booking.id,
+    };
+  }).then(async (result) => {
+    if (result.full) {
+      try {
+        const { releaseConfirmedSeatsForBooking } = await import('@/lib/inventory/service');
+        await releaseConfirmedSeatsForBooking(result.bookingId);
+      } catch {
+        /* ops can reconcile; payment already refunded */
+      }
+    }
+    return {
+      refundId: result.refundId,
+      razorpayRefundId: result.razorpayRefundId,
+      amountPaise: result.amountPaise,
+      full: result.full,
     };
   });
 }

@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       phone: String(body.phone || ''),
       city: String(body.city || ''),
       date: String(body.date || ''),
+      batchId: body.batchId ? String(body.batchId) : undefined,
       notes: String(body.notes || ''),
       pickup: String(body.pickup || ''),
       participants: Array.isArray(body.participants) ? body.participants : [],
@@ -60,6 +61,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Invalid request';
+    const code =
+      typeof err === 'object' && err && 'code' in err
+        ? String((err as { code: string }).code)
+        : undefined;
     const status =
       typeof err === 'object' && err && 'status' in err
         ? Number((err as { status: number }).status)
@@ -67,7 +72,12 @@ export async function POST(req: NextRequest) {
           ? 404
           : 400;
     return NextResponse.json(
-      { error: message, code: status === 401 ? 'AUTH_REQUIRED' : undefined },
+      {
+        error: message,
+        code:
+          code ||
+          (status === 401 ? 'AUTH_REQUIRED' : status === 409 ? 'BOOKING_UNAVAILABLE' : undefined),
+      },
       { status: Number.isFinite(status) ? status : 400 },
     );
   }

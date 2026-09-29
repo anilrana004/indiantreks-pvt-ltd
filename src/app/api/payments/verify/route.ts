@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { isRazorpayConfigured } from '@/lib/payments/razorpay';
-import { clientIp, rateLimit } from '@/lib/payments/rate-limit';
+import { clientIp, consumePaymentRateLimit } from '@/lib/payments/rate-limit';
 import { verifyAndConfirmPayment } from '@/lib/payments/service';
+import { rateLimitedResponse } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -14,8 +15,9 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = clientIp(req);
-  if (!rateLimit(`verify:${ip}`, 30, 60_000)) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  const limited = await consumePaymentRateLimit('payment.verify', ip, 30, 60_000);
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited.retryAfterSec);
   }
 
   try {
@@ -30,7 +32,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Verification failed';
-    const status = typeof err === 'object' && err && 'status' in err ? Number((err as { status: number }).status) : 400;
+    const status =
+      typeof err === 'object' && err && 'status' in err
+        ? Number((err as { status: number }).status)
+        : 400;
     return NextResponse.json({ error: message }, { status: Number.isFinite(status) ? status : 400 });
   }
 }

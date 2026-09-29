@@ -90,6 +90,7 @@ function testTrustedPricingIgnoresClientPrice() {
   });
   assert.ok(baseline.payablePaise >= 100);
   assert.equal(baseline.payablePaise, baseline.payableRupees * 100);
+  assert.equal(baseline.snapshot.priceSource, 'catalog_fallback');
 
   const withAllowedPickup = calculateTrustedPayable({
     trekId: trek.id,

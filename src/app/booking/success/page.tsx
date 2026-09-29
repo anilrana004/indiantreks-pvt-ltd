@@ -22,10 +22,20 @@ type Summary = {
   method?: string | null;
 };
 
+function readCheckoutToken(bookingId: string, queryToken: string): string {
+  if (queryToken) return queryToken;
+  if (!bookingId || typeof window === 'undefined') return '';
+  try {
+    return sessionStorage.getItem(`it-checkout:${bookingId}`) || '';
+  } catch {
+    return '';
+  }
+}
+
 function SuccessContent() {
   const sp = useSearchParams();
   const bookingId = sp.get('bookingId') || '';
-  const token = sp.get('token') || '';
+  const queryToken = sp.get('token') || '';
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,16 +43,18 @@ function SuccessContent() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const token = readCheckoutToken(bookingId, queryToken);
       if (!bookingId || !token) {
         setError('Missing booking reference.');
         setLoading(false);
         return;
       }
       try {
-        const res = await fetch(
-          `/api/bookings/${encodeURIComponent(bookingId)}?token=${encodeURIComponent(token)}`,
-          { credentials: 'include', cache: 'no-store' },
-        );
+        const res = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { 'X-Checkout-Token': token },
+        });
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || 'Unable to load booking');
         if (!cancelled) setSummary(body);
@@ -55,7 +67,7 @@ function SuccessContent() {
     return () => {
       cancelled = true;
     };
-  }, [bookingId, token]);
+  }, [bookingId, queryToken]);
 
   if (loading) {
     return (

@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 /**
  * Cron/ops endpoint to expire payment holds.
- * Authorize with CRON_SECRET (Bearer or ?secret=).
+ * Authorize with CRON_SECRET Bearer header only (no query-string secret).
  */
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -16,8 +16,7 @@ export async function POST(req: NextRequest) {
 
   const auth = req.headers.get('authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  const querySecret = req.nextUrl.searchParams.get('secret') || '';
-  if (bearer !== secret && querySecret !== secret) {
+  if (bearer !== secret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

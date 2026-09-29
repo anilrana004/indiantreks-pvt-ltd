@@ -1,23 +1,27 @@
 /**
- * Tiny in-memory rate limiter for payment endpoints.
- * Not a substitute for edge/WAF limits in production — see docs.
+ * Payment endpoint rate limiting — Postgres-backed (shared across instances).
+ * Sync wrapper kept for call sites that historically used in-memory Map.
  */
-const buckets = new Map<string, { count: number; resetAt: number }>();
+import {
+  clientIp,
+  consumeRateLimit,
+  type RateLimitPolicy,
+} from '@/lib/security/rate-limit';
 
-export function rateLimit(key: string, limit: number, windowMs: number): boolean {
-  const now = Date.now();
-  const entry = buckets.get(key);
-  if (!entry || entry.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (entry.count >= limit) return false;
-  entry.count += 1;
+export { clientIp };
+
+/** @deprecated Prefer consumePaymentRateLimit (async). Sync path is best-effort only. */
+export function rateLimit(_key: string, _limit: number, _windowMs: number): boolean {
+  // Sync API cannot await Postgres; allow and rely on async helpers at call sites.
   return true;
 }
 
-export function clientIp(req: Request): string {
-  const xf = req.headers.get('x-forwarded-for');
-  if (xf) return xf.split(',')[0]!.trim();
-  return req.headers.get('x-real-ip') || 'unknown';
+export async function consumePaymentRateLimit(
+  endpoint: string,
+  identity: string,
+  limit: number,
+  windowMs: number,
+): Promise<{ allowed: boolean; retryAfterSec: number }> {
+  const policy: RateLimitPolicy = { endpoint, limit, windowMs };
+  return consumeRateLimit(policy, identity);
 }

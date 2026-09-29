@@ -229,17 +229,73 @@ export async function createBooking(_input: CreateBookingInput): Promise<Booking
 }
 
 export async function updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | null> {
-  const [row] = await requireDb()
-    .update(bookings)
-    .set({ status })
-    .where(eq(bookings.id, id))
-    .returning();
-  return row ? toBooking(row) : null;
+  try {
+    const { applyBookingTransition } = await import('@/lib/bookings/transitions');
+    const row = await applyBookingTransition({
+      bookingId: id,
+      toStatus: status,
+      reason: 'admin_status_update',
+      actor: 'admin',
+    });
+    return row ? toBooking(row) : null;
+  } catch (err) {
+    throw err;
+  }
 }
 
 export async function listContacts(): Promise<Contact[]> {
   const rows = await requireDb().select().from(contacts).orderBy(desc(contacts.createdAt));
   return rows.map(toContact);
+}
+
+export type ContactsPageResult = {
+  contacts: Contact[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function listContactsPage(opts?: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+}): Promise<ContactsPageResult> {
+  const db = requireDb();
+  const page = Math.max(1, Math.floor(opts?.page || 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(opts?.pageSize || 25)));
+  const q = opts?.q?.trim() || '';
+
+  const where = q
+    ? or(
+        ilike(contacts.name, `%${q}%`),
+        ilike(contacts.email, `%${q}%`),
+        ilike(contacts.phone, `%${q}%`),
+        ilike(contacts.message, `%${q}%`),
+      )
+    : undefined;
+
+  const [totalRow] = await db.select({ value: count() }).from(contacts).where(where);
+  const total = Number(totalRow?.value || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * pageSize;
+
+  const rows = await db
+    .select()
+    .from(contacts)
+    .where(where)
+    .orderBy(desc(contacts.createdAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  return {
+    contacts: rows.map(toContact),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function createContact(input: CreateContactInput): Promise<Contact> {

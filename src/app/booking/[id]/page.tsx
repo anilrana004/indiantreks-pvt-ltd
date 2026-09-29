@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { ArrowRight, Shield, Check, ChevronRight, Star, Clock, Users, Phone, Calendar, CreditCard, Lock, Wallet, Percent, Gift, Loader, Ban, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { treks, trekDetailPath } from '@/lib/data';
+import { treks, trekDetailPath, type PricingTier } from '@/lib/data';
 import {
   bookingSharingLabel,
   bookingSharingOptions,
@@ -127,6 +127,29 @@ function BookingContent() {
   const [signedInUser, setSignedInUser] = useState<PublicUser | null>(null);
   const [profileFilled, setProfileFilled] = useState(false);
   const [gearTick, setGearTick] = useState(0);
+  const [livePricing, setLivePricing] = useState<PricingTier[] | null>(null);
+
+  useEffect(() => {
+    if (!trek) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/treks/${encodeURIComponent(trek.id)}/packages`, {
+          credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { packages?: PricingTier[] };
+        if (!cancelled && Array.isArray(data.packages) && data.packages.length > 0) {
+          setLivePricing(data.packages);
+        }
+      } catch {
+        /* keep catalog display */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [trek]);
 
   const gearQuery = sp.get('gear');
   const returnToRaw = sp.get('returnTo');
@@ -193,16 +216,19 @@ function BookingContent() {
   );
   const gearTotal = cartSubtotal(gearLines);
 
+  const pricingTiers = livePricing ?? trek?.pricing ?? [];
   const sharingOptions = useMemo(
-    () => (trek ? bookingSharingOptions(trek.pricing) : []),
-    [trek],
+    () => (pricingTiers.length ? bookingSharingOptions(pricingTiers) : []),
+    [pricingTiers],
   );
   const pkgKey = useMemo(() => {
     if (!trek) return form.pkg;
     if (sharingOptions.some((o) => o.key === form.pkg)) return form.pkg;
-    return defaultBookingPkg(trek.pricing);
-  }, [trek, sharingOptions, form.pkg]);
-  const pkgLabel = trek ? bookingSharingLabel(trek.pricing, pkgKey) : form.pkg;
+    return defaultBookingPkg(pricingTiers.length ? pricingTiers : trek.pricing);
+  }, [trek, sharingOptions, form.pkg, pricingTiers]);
+  const pkgLabel = trek
+    ? bookingSharingLabel(pricingTiers.length ? pricingTiers : trek.pricing, pkgKey)
+    : form.pkg;
 
   if (!trek) return (
     <div className="pt-28 min-h-screen flex items-center justify-center">
@@ -216,7 +242,11 @@ function BookingContent() {
   );
 
   const backHref = returnTo || trekDetailPath(trek);
-  const selectedPkg = trek.pricing.find(p => p.name === pkgKey) || trek.pricing[0];
+  const selectedPkg =
+    pricingTiers.find((p) => p.name === pkgKey) ||
+    pricingTiers[0] ||
+    trek.pricing.find((p) => p.name === pkgKey) ||
+    trek.pricing[0];
   const personCount = Math.max(1, parseInt(form.persons, 10) || 1);
   const pickupFee = Math.max(0, parseInt(sp.get('pickupFee') || '0', 10) || 0);
   const selectedAddonIds = (sp.get('addons') || '')
@@ -296,6 +326,7 @@ function BookingContent() {
           phone: form.phone,
           city: form.city,
           date: form.date,
+          batchId: sp.get('batchId') || undefined,
           notes: form.notes,
           pickup: form.pickup,
           participants: namedParticipants.map(({ name, age, gender, phone }) => ({
@@ -365,12 +396,12 @@ function BookingContent() {
               throw new Error(verifyBody.error || 'Payment verification failed');
             }
             router.push(
-              `/booking/success?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}`,
+              `/booking/success?bookingId=${encodeURIComponent(bookingId)}`,
             );
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Verification failed';
             router.push(
-              `/booking/payment-failed?bookingId=${encodeURIComponent(bookingId)}&token=${encodeURIComponent(checkoutToken)}&reason=${encodeURIComponent(message)}`,
+              `/booking/payment-failed?bookingId=${encodeURIComponent(bookingId)}&reason=${encodeURIComponent(message)}`,
             );
           } finally {
             setPaying(false);

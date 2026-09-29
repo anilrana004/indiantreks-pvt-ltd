@@ -8,7 +8,7 @@ import type {
   PaymentTxStatus,
 } from '@/lib/operations/types';
 import {
-  calculateTrustedPayable,
+  resolveTrustedPayable,
   type CheckoutParticipant,
   type CheckoutPricingInput,
 } from '@/lib/payments/pricing';
@@ -52,6 +52,7 @@ export type CheckoutBookingInput = CheckoutPricingInput & {
   phone: string;
   city?: string;
   date: string;
+  batchId?: string;
   notes?: string;
   pickup?: string;
   participants?: CheckoutParticipant[];
@@ -69,8 +70,8 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
 
   // Opportunistic hold cleanup (non-blocking for correctness — also checked on pay)
   try {
-    const { expireStaleBookingHolds } = await import('@/lib/payments/holds');
-    await expireStaleBookingHolds(50);
+    const { expireStaleInventoryHolds } = await import('@/lib/inventory/service');
+    await expireStaleInventoryHolds(50);
   } catch {
     /* ignore cleanup errors */
   }
@@ -82,7 +83,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     throw new Error('Missing required booking fields');
   }
 
-  const pricing = calculateTrustedPayable({
+  const pricing = await resolveTrustedPayable({
     trekId: input.trekId,
     packageName: input.packageName,
     persons: input.persons,
@@ -92,6 +93,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     gearLines: input.gearLines,
   });
 
+  const persons = Math.max(1, Math.min(20, Math.floor(input.persons) || 1));
   const checkoutToken = createCheckoutToken();
   const holdMs = paymentHoldMinutes() * 60 * 1000;
   const holdExpiresAt = new Date(Date.now() + holdMs);
@@ -109,44 +111,83 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     input.pickup ? `Pickup: ${input.pickup}` : '',
   ].filter(Boolean);
 
-  const [row] = await requireDb()
-    .insert(bookings)
-    .values({
-      trekId: input.trekId,
-      trekTitle: pricing.trekTitle,
-      name,
-      email,
-      phone,
-      package: pricing.packageName,
-      persons: Math.max(1, Math.floor(input.persons) || 1),
-      date: input.date,
-      payment: input.paymentMode,
-      amount: pricing.payableRupees,
-      status: 'pending_payment',
-      notes: notesParts.join('\n'),
-      userId: user.id,
-      referenceCode: generateBookingReference(),
-      city: input.city?.trim() || '',
-      participantsJson: JSON.stringify(participants),
-      pricingSnapshot: JSON.stringify(pricing.snapshot),
-      payablePaise: pricing.payablePaise,
-      totalPaise: pricing.totalPaise,
-      currency: 'INR',
-      checkoutTokenHash: hashToken(checkoutToken),
-      paymentStatus: 'awaiting_payment',
-      holdExpiresAt,
-      emailStatus: 'not_configured',
-      updatedAt: new Date(),
-    })
-    .returning();
+  const { reserveInventory, attachHoldToBooking, releaseHold } = await import(
+    '@/lib/inventory/service'
+  );
 
-  if (!row) throw new Error('Failed to create booking');
+  const reservation = await reserveInventory({
+    trekId: input.trekId,
+    startDate: input.date,
+    batchId: input.batchId,
+    quantity: persons,
+    userId: user.id,
+    expiresAt: holdExpiresAt,
+  });
+
+  let row: typeof bookings.$inferSelect | undefined;
+  try {
+    const inserted = await requireDb()
+      .insert(bookings)
+      .values({
+        trekId: input.trekId,
+        trekTitle: pricing.trekTitle,
+        name,
+        email,
+        phone,
+        package: pricing.packageName,
+        persons,
+        date: reservation.startDate,
+        payment: input.paymentMode,
+        amount: pricing.payableRupees,
+        status: 'pending_payment',
+        notes: notesParts.join('\n'),
+        userId: user.id,
+        referenceCode: generateBookingReference(),
+        city: input.city?.trim() || '',
+        participantsJson: JSON.stringify(participants),
+        pricingSnapshot: JSON.stringify({
+          ...pricing.snapshot,
+          batchId: reservation.batchId,
+          holdId: reservation.holdId,
+        }),
+        payablePaise: pricing.payablePaise,
+        totalPaise: pricing.totalPaise,
+        currency: 'INR',
+        checkoutTokenHash: hashToken(checkoutToken),
+        paymentStatus: 'awaiting_payment',
+        holdExpiresAt,
+        batchId: reservation.batchId,
+        holdId: reservation.holdId,
+        emailStatus: 'not_configured',
+        updatedAt: new Date(),
+      })
+      .returning();
+    row = inserted[0];
+    if (!row) throw new Error('Failed to create booking');
+    await attachHoldToBooking(reservation.holdId, row.id, reservation.batchId);
+
+    const {
+      normalizeParticipantsInput,
+      replaceBookingParticipants,
+    } = await import('@/lib/bookings/participants');
+    const normalized = normalizeParticipantsInput(input.participants, persons);
+    await replaceBookingParticipants(row.id, normalized);
+  } catch (err) {
+    try {
+      await releaseHold(reservation.holdId, 'cancelled');
+    } catch {
+      /* best-effort */
+    }
+    throw err;
+  }
 
   logPayment('booking_created', {
     bookingId: row.id,
     referenceCode: row.referenceCode,
     payablePaise: row.payablePaise,
     userId: user.id,
+    batchId: reservation.batchId,
+    holdId: reservation.holdId,
   });
 
   return {
@@ -158,6 +199,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     currency: row.currency,
     amountRupees: pricing.payableRupees,
     holdExpiresAt: holdExpiresAt.toISOString(),
+    batchId: reservation.batchId,
   };
 }
 
@@ -229,7 +271,33 @@ export async function assertBookingPayable(bookingId: string, checkoutToken: str
       .update(bookings)
       .set({ status: 'expired', paymentStatus: 'failed', updatedAt: new Date() })
       .where(eq(bookings.id, booking.id));
+    if (booking.holdId) {
+      try {
+        const { releaseHold } = await import('@/lib/inventory/service');
+        await releaseHold(booking.holdId, 'expired');
+      } catch {
+        /* ignore */
+      }
+    }
     throw Object.assign(new Error('Booking payment window expired'), { status: 409 });
+  }
+
+  if (booking.holdId) {
+    const { schema: dbSchema, getDb: gdb } = await import('@/lib/db');
+    const db = gdb();
+    if (db) {
+      const [hold] = await db
+        .select()
+        .from(dbSchema.bookingHolds)
+        .where(eq(dbSchema.bookingHolds.id, booking.holdId))
+        .limit(1);
+      if (!hold || hold.status !== 'active' || hold.expiresAt.getTime() < Date.now()) {
+        throw Object.assign(new Error('Booking inventory hold is no longer active'), {
+          status: 409,
+          code: 'BOOKING_UNAVAILABLE',
+        });
+      }
+    }
   }
 
   if (!booking.payablePaise || booking.payablePaise < 100) {
@@ -290,6 +358,14 @@ export async function createRazorpayOrderForBooking(
       throw Object.assign(new Error('Booking already paid'), { status: 409 });
     }
     if (row.holdExpiresAt && row.holdExpiresAt.getTime() < Date.now()) {
+      const { assertBookingStatusTransition, assertPaymentStatusTransition } = await import(
+        '@/lib/bookings/state-machine'
+      );
+      assertBookingStatusTransition(row.status as import('@/lib/operations/types').BookingStatus, 'expired');
+      assertPaymentStatusTransition(
+        (row.paymentStatus || 'unpaid') as import('@/lib/operations/types').BookingPaymentStatus,
+        'failed',
+      );
       await tx
         .update(bookings)
         .set({ status: 'expired', paymentStatus: 'failed', updatedAt: new Date() })
@@ -322,6 +398,18 @@ export async function createRazorpayOrderForBooking(
       return { kind: 'reuse' as const, booking: row, tx: existing };
     }
 
+    const { assertBookingStatusTransition, assertPaymentStatusTransition } = await import(
+      '@/lib/bookings/state-machine'
+    );
+    assertBookingStatusTransition(
+      row.status as import('@/lib/operations/types').BookingStatus,
+      'payment_processing',
+    );
+    assertPaymentStatusTransition(
+      (row.paymentStatus || 'unpaid') as import('@/lib/operations/types').BookingPaymentStatus,
+      'processing',
+    );
+
     await tx
       .update(bookings)
       .set({
@@ -333,6 +421,22 @@ export async function createRazorpayOrderForBooking(
 
     return { kind: 'create' as const, booking: row };
   });
+
+  if (locked.kind === 'create') {
+    try {
+      await requireDb().insert(schema.bookingStatusHistory).values({
+        bookingId: locked.booking.id,
+        fromStatus: locked.booking.status,
+        toStatus: 'payment_processing',
+        fromPaymentStatus: locked.booking.paymentStatus,
+        toPaymentStatus: 'processing',
+        reason: 'razorpay_order_create',
+        actor: 'payments',
+      });
+    } catch {
+      /* history best-effort */
+    }
+  }
 
   if (locked.kind === 'reuse') {
     logPayment('order_reused', {
@@ -414,6 +518,19 @@ async function markBookingPaid(opts: {
   const db = requireDb();
   const now = new Date();
 
+  const [txRow] = await db
+    .select()
+    .from(paymentTransactions)
+    .where(eq(paymentTransactions.id, opts.paymentTxId))
+    .limit(1);
+  if (!txRow) throw new Error('Payment transaction not found');
+
+  const { assertPaymentTxTransition } = await import('@/lib/bookings/state-machine');
+  assertPaymentTxTransition(
+    txRow.status as import('@/lib/operations/types').PaymentTxStatus,
+    'captured',
+  );
+
   await db
     .update(paymentTransactions)
     .set({
@@ -428,29 +545,34 @@ async function markBookingPaid(opts: {
     })
     .where(eq(paymentTransactions.id, opts.paymentTxId));
 
-  await db
-    .update(bookings)
-    .set({
-      status: 'confirmed',
-      paymentStatus: 'paid',
-      confirmedAt: now,
-      updatedAt: now,
-      emailStatus: 'pending',
-    })
-    .where(eq(bookings.id, opts.bookingId));
+  const { applyBookingTransition } = await import('@/lib/bookings/transitions');
+  await applyBookingTransition({
+    bookingId: opts.bookingId,
+    toStatus: 'confirmed',
+    toPaymentStatus: 'paid',
+    reason: 'payment_captured',
+    actor: 'payments',
+    extra: { confirmedAt: now, emailStatus: 'pending' },
+  });
 
-  // Best-effort confirmation email hook (no SMTP configured yet — do not roll back payment)
   try {
-    await maybeSendBookingConfirmationEmail(opts.bookingId);
+    const { convertHoldForBooking } = await import('@/lib/inventory/service');
+    await convertHoldForBooking(opts.bookingId);
   } catch (err) {
-    logPayment('email_failed', {
+    logPayment('inventory_convert_failed', {
       bookingId: opts.bookingId,
       error: err instanceof Error ? err.message : 'unknown',
     });
-    await db
-      .update(bookings)
-      .set({ emailStatus: 'failed', updatedAt: new Date() })
-      .where(eq(bookings.id, opts.bookingId));
+  }
+
+  // Queue confirmation email — never block payment capture on Brevo latency.
+  try {
+    await enqueueBookingConfirmationEmail(opts.bookingId);
+  } catch (err) {
+    logPayment('email_enqueue_failed', {
+      bookingId: opts.bookingId,
+      error: err instanceof Error ? err.message : 'unknown',
+    });
   }
 
   logPayment('booking_confirmed', {
@@ -460,15 +582,15 @@ async function markBookingPaid(opts: {
   });
 }
 
-async function maybeSendBookingConfirmationEmail(bookingId: string) {
+async function enqueueBookingConfirmationEmail(bookingId: string) {
   const booking = await loadBooking(bookingId);
   if (!booking) return;
 
   const {
     isTransactionalEmailConfigured,
-    sendTransactionalEmail,
     bookingConfirmationEmailHtml,
   } = await import('@/lib/email/brevo');
+  const { enqueueEmail } = await import('@/lib/email/outbox');
 
   if (!isTransactionalEmailConfigured()) {
     await requireDb()
@@ -478,13 +600,9 @@ async function maybeSendBookingConfirmationEmail(bookingId: string) {
     return;
   }
 
-  await requireDb()
-    .update(bookings)
-    .set({ emailStatus: 'pending', updatedAt: new Date() })
-    .where(eq(bookings.id, bookingId));
-
   const payableRupees = Math.floor((booking.payablePaise || 0) / 100);
-  const result = await sendTransactionalEmail({
+  await enqueueEmail({
+    kind: 'booking_confirmation',
     toEmail: booking.email,
     toName: booking.name,
     subject: `Booking confirmed — ${booking.trekTitle} (${booking.referenceCode || booking.id.slice(0, 8)})`,
@@ -497,27 +615,18 @@ async function maybeSendBookingConfirmationEmail(bookingId: string) {
       persons: booking.persons,
     }),
     text: `Hi ${booking.name}, your ${booking.trekTitle} booking ${booking.referenceCode || ''} is confirmed.`,
-    tags: ['booking-confirmation'],
+    bookingId: booking.id,
   });
-
-  if (!result.ok) {
-    await requireDb()
-      .update(bookings)
-      .set({
-        emailStatus: result.reason === 'not_configured' ? 'not_configured' : 'failed',
-        updatedAt: new Date(),
-      })
-      .where(eq(bookings.id, bookingId));
-    if (result.reason !== 'not_configured') {
-      throw new Error(result.detail || 'email_send_failed');
-    }
-    return;
-  }
 
   await requireDb()
     .update(bookings)
-    .set({ emailStatus: 'sent', updatedAt: new Date() })
+    .set({ emailStatus: 'queued', updatedAt: new Date() })
     .where(eq(bookings.id, bookingId));
+}
+
+/** @deprecated Prefer enqueue + cron; kept for ops scripts. */
+async function maybeSendBookingConfirmationEmail(bookingId: string) {
+  await enqueueBookingConfirmationEmail(bookingId);
 }
 
 export async function verifyAndConfirmPayment(input: {
@@ -666,6 +775,22 @@ export async function markPaymentFailed(opts: {
   }
 
   if (opts.razorpayOrderId) {
+    const [txRow] = await db
+      .select()
+      .from(paymentTransactions)
+      .where(eq(paymentTransactions.razorpayOrderId, opts.razorpayOrderId))
+      .limit(1);
+    if (txRow && txRow.status !== 'failed') {
+      const { assertPaymentTxTransition } = await import('@/lib/bookings/state-machine');
+      try {
+        assertPaymentTxTransition(
+          txRow.status as import('@/lib/operations/types').PaymentTxStatus,
+          'failed',
+        );
+      } catch {
+        return { ignored: true as const };
+      }
+    }
     await db
       .update(paymentTransactions)
       .set({
@@ -677,14 +802,14 @@ export async function markPaymentFailed(opts: {
       .where(eq(paymentTransactions.razorpayOrderId, opts.razorpayOrderId));
   }
 
-  await db
-    .update(bookings)
-    .set({
-      status: 'payment_failed',
-      paymentStatus: 'failed',
-      updatedAt: now,
-    })
-    .where(eq(bookings.id, opts.bookingId));
+  const { applyBookingTransition } = await import('@/lib/bookings/transitions');
+  await applyBookingTransition({
+    bookingId: opts.bookingId,
+    toStatus: 'payment_failed',
+    toPaymentStatus: 'failed',
+    reason: opts.reason || 'payment_failed',
+    actor: 'payments',
+  });
 
   return { ignored: false as const };
 }

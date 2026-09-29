@@ -4,6 +4,11 @@ import { addOns } from '@/lib/trek-detail-content';
 import { rupeesToPaise } from '@/lib/payments/razorpay';
 import { resolveTrustedPickupFeeInr } from '@/lib/payments/pickup-fees';
 import type { BookingPayment } from '@/lib/operations/types';
+import {
+  dbPackageToPricingTier,
+  findActivePackage,
+  type DbPackage,
+} from '@/lib/catalog/packages';
 
 export type CheckoutParticipant = {
   name: string;
@@ -43,15 +48,14 @@ function resolveTier(pricing: PricingTier[], packageName: string): PricingTier {
   return sorted[0]!;
 }
 
-/**
- * Server-trusted payable amount. Never use client-supplied prices.
- */
-export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPricingResult {
-  const trek = treks.find((t) => t.id === input.trekId);
-  if (!trek) throw new Error('Trek not found');
-
+function computePayable(
+  trekTitle: string,
+  trekId: string,
+  tier: PricingTier,
+  input: CheckoutPricingInput,
+  meta: { packageId?: string; priceSource: 'postgres' | 'catalog_fallback' },
+): TrustedPricingResult {
   const persons = Math.max(1, Math.min(20, Math.floor(input.persons) || 1));
-  const tier = resolveTier(trek.pricing, input.packageName);
   const pickupFee = resolveTrustedPickupFeeInr(input.pickupFeePerPerson);
 
   const selectedAddonIds = (input.addonIds || []).map((id) => id.trim()).filter(Boolean);
@@ -67,7 +71,7 @@ export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPri
     if (qty <= 0) continue;
     gearTotalRupees += gear.price * qty;
     gearLinesTrusted.push({
-      trekId: trek.id,
+      trekId,
       gearId: gear.id,
       qty,
       size: '',
@@ -93,7 +97,7 @@ export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPri
   const totalPaise = rupeesToPaise(totalRupees);
 
   return {
-    trekTitle: trek.title,
+    trekTitle,
     packageName: tier.name,
     unitPriceRupees: tier.price,
     depositPerPersonRupees: tier.deposit,
@@ -103,7 +107,8 @@ export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPri
     payablePaise,
     totalPaise,
     snapshot: {
-      trekId: trek.id,
+      trekId,
+      packageId: meta.packageId || null,
       packageName: tier.name,
       persons,
       paymentMode: input.paymentMode,
@@ -126,6 +131,50 @@ export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPri
       calculatedAt: new Date().toISOString(),
       trusted: true,
       source: 'checkout',
+      priceSource: meta.priceSource,
     },
   };
+}
+
+/**
+ * Sync catalog-only calculator (smoke tests / offline). Prefer resolveTrustedPayable in checkout.
+ */
+export function calculateTrustedPayable(input: CheckoutPricingInput): TrustedPricingResult {
+  const trek = treks.find((t) => t.id === input.trekId);
+  if (!trek) throw new Error('Trek not found');
+  const tier = resolveTier(trek.pricing, input.packageName);
+  return computePayable(trek.title, trek.id, tier, input, { priceSource: 'catalog_fallback' });
+}
+
+/**
+ * Authoritative checkout pricing: Postgres trek_packages first, catalog fallback if DB empty/down.
+ */
+export async function resolveTrustedPayable(
+  input: CheckoutPricingInput,
+): Promise<TrustedPricingResult> {
+  const trek = treks.find((t) => t.id === input.trekId);
+  if (!trek) throw new Error('Trek not found');
+
+  try {
+    const pkg: DbPackage | null = await findActivePackage(trek.id, input.packageName);
+    if (pkg) {
+      const tier = dbPackageToPricingTier(pkg);
+      // Preserve requested occupancy name when DB row uses canonical Economic/Standard/Premium
+      if (
+        input.packageName &&
+        ['Economic', 'Standard', 'Premium'].includes(input.packageName) &&
+        tier.name !== input.packageName
+      ) {
+        // findActivePackage already matched by key/name; use DB prices with catalog display name if needed
+      }
+      return computePayable(trek.title, trek.id, tier, input, {
+        packageId: pkg.id,
+        priceSource: 'postgres',
+      });
+    }
+  } catch {
+    /* fall through to catalog */
+  }
+
+  return calculateTrustedPayable(input);
 }

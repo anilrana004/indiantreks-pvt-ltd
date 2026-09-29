@@ -89,10 +89,49 @@ export async function patchBookingStatus(id: string, status: BookingStatus): Pro
   return asOne(data, 'booking');
 }
 
-export async function fetchAdminContacts(): Promise<Contact[]> {
-  const res = await adminFetch('/api/admin/contacts');
-  const data = await parseJson<Contact[] | { contacts: Contact[] }>(res);
-  return asList(data);
+export async function fetchAdminContacts(opts?: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+}): Promise<{
+  contacts: Contact[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> {
+  const params = new URLSearchParams();
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+  if (opts?.q) params.set('q', opts.q);
+  const qs = params.toString();
+  const res = await adminFetch(`/api/admin/contacts${qs ? `?${qs}` : ''}`);
+  const data = await parseJson<
+    Contact[] | {
+      contacts: Contact[];
+      total?: number;
+      page?: number;
+      pageSize?: number;
+      totalPages?: number;
+    }
+  >(res);
+  if (Array.isArray(data)) {
+    return {
+      contacts: data,
+      total: data.length,
+      page: 1,
+      pageSize: data.length || 25,
+      totalPages: 1,
+    };
+  }
+  const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+  return {
+    contacts,
+    total: Number(data.total ?? contacts.length),
+    page: Number(data.page ?? 1),
+    pageSize: Number(data.pageSize ?? (contacts.length || 25)),
+    totalPages: Number(data.totalPages ?? 1),
+  };
 }
 
 export type AdminGuestReviewRow = {

@@ -631,7 +631,28 @@ export default function TrekDetailContent({
   const heroImage = images[0] ?? trekPhoto(trek.id);
   const sideImageA = images[1] ?? heroImage;
   const sideImageB = images[2] ?? heroImage;
-  const batches = useMemo(() => getDepartureBatches(trek, 4, 3), [trek]);
+  const [batches, setBatches] = useState<TrekBatch[]>(() => getDepartureBatches(trek, 4, 3));
+  useEffect(() => {
+    setBatches(getDepartureBatches(trek, 4, 3));
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/treks/${encodeURIComponent(trek.id)}/batches`, {
+          credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { batches?: TrekBatch[] };
+        if (!cancelled && Array.isArray(data.batches) && data.batches.length > 0) {
+          setBatches(data.batches);
+        }
+      } catch {
+        /* keep catalog */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [trek]);
   const seasons = useMemo(() => getSeasonGuide(trek), [trek]);
   const reachSteps = useMemo(
     () => extended?.reachSteps ?? getReachSteps(trek),
@@ -1072,7 +1093,10 @@ export default function TrekDetailContent({
 
   const bookingHref = () => {
     const params = new URLSearchParams({ pkg: tierName });
-    if (selectedBatch) params.set('date', selectedBatch.startDate);
+    if (selectedBatch) {
+      params.set('date', selectedBatch.startDate);
+      params.set('batchId', selectedBatch.id);
+    }
     params.set('persons', String(persons));
     params.set('men', String(men));
     params.set('women', String(women));

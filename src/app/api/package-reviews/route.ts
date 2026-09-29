@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isCloudinaryUploadConfigured, uploadToCloudinary } from '@/lib/cloudinary-server';
-import { clientIp, rateLimit } from '@/lib/payments/rate-limit';
+import { clientIp, consumePaymentRateLimit } from '@/lib/payments/rate-limit';
+import { rateLimitedResponse } from '@/lib/security/rate-limit';
 import {
   createGuestReview,
   hashReviewIp,
@@ -46,8 +47,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = clientIp(req);
-    if (!rateLimit(`package-reviews:${ip}`, 8, 60_000)) {
-      return badRequest('Too many review submissions. Please wait a minute.', 429);
+    const limited = await consumePaymentRateLimit('package.reviews', ip, 8, 60_000);
+    if (!limited.allowed) {
+      return rateLimitedResponse(limited.retryAfterSec);
     }
 
     if (!isMongoConfigured()) {

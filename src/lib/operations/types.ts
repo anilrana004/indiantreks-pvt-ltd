@@ -29,7 +29,8 @@ export type PaymentTxStatus =
   | 'captured'
   | 'failed'
   | 'refund_pending'
-  | 'refunded';
+  | 'refunded'
+  | 'partially_refunded';
 
 export type RefundStatus =
   | 'requested'

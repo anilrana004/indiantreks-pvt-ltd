@@ -1,8 +1,15 @@
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { unauthorizedResponse, dbUnavailableResponse } from '@/lib/api/responses';
 import { ADMIN_PREFIX } from '@/lib/admin/constants';
 import { verifyAdminSessionToken } from '@/lib/admin/session';
+import {
+  adminHasPermission,
+  resolveAdminRole,
+  type AdminPermission,
+  type AdminRole,
+} from '@/lib/admin/rbac';
 
 export { ADMIN_PREFIX, unauthorizedResponse, dbUnavailableResponse };
 
@@ -19,13 +26,28 @@ export async function isAdminAuthenticated(): Promise<boolean> {
   return verifyToken(cookieStore.get('admin_token')?.value);
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<{
+  email: string;
+  role: AdminRole;
+} | null> {
   const cookieStore = await cookies();
   const session = await verifyAdminSessionToken(cookieStore.get('admin_token')?.value);
   if (!session) return null;
   return {
     email: session.email,
-    role: 'admin' as const,
+    role: resolveAdminRole(),
   };
 }
 
+export async function requireAdminPermission(permission: AdminPermission) {
+  const admin = await requireAdmin();
+  if (!admin) return { admin: null, forbidden: false as const };
+  if (!adminHasPermission(admin.role, permission)) {
+    return { admin, forbidden: true as const };
+  }
+  return { admin, forbidden: false as const };
+}
+
+export function forbiddenResponse() {
+  return NextResponse.json({ error: 'Forbidden', code: 'RBAC_DENIED' }, { status: 403 });
+}

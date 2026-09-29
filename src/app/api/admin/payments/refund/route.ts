@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, unauthorizedResponse } from '@/lib/admin/auth';
+import { forbiddenResponse, requireAdminPermission, unauthorizedResponse } from '@/lib/admin/auth';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { isRazorpayConfigured } from '@/lib/payments/razorpay';
@@ -7,10 +7,11 @@ import { initiateRefund } from '@/lib/payments/refunds';
 
 export const runtime = 'nodejs';
 
-/** Admin-only: create Razorpay refund (never from browser with secrets). */
+/** Admin+finance: create Razorpay refund (never from browser with secrets). */
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return unauthorizedResponse();
+  const gate = await requireAdminPermission('refunds.write');
+  if (!gate.admin) return unauthorizedResponse();
+  if (gate.forbidden) return forbiddenResponse();
   if (!isDbConfigured()) return dbUnavailableResponse();
   if (!isRazorpayConfigured()) {
     return NextResponse.json({ error: 'Razorpay is not configured' }, { status: 503 });

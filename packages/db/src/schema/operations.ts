@@ -28,6 +28,8 @@ export const bookings = pgTable('bookings', {
   holdExpiresAt: timestamp('hold_expires_at', { withTimezone: true }),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   emailStatus: text('email_status').notNull().default('not_configured'),
+  batchId: uuid('batch_id'),
+  holdId: uuid('hold_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

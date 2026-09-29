@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbUnavailableResponse } from '@/lib/api/responses';
+import { apiError, dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { getBookingPublicSummary } from '@/lib/payments/service';
 
 export const runtime = 'nodejs';
+
+function resolveCheckoutToken(req: NextRequest): string {
+  const header = req.headers.get('x-checkout-token') || '';
+  if (header.trim()) return header.trim();
+  return (req.nextUrl.searchParams.get('token') || '').trim();
+}
 
 export async function GET(
   req: NextRequest,
@@ -11,12 +17,12 @@ export async function GET(
 ) {
   if (!isDbConfigured()) return dbUnavailableResponse();
   const { id } = await ctx.params;
-  const checkoutToken = req.nextUrl.searchParams.get('token') || '';
+  const checkoutToken = resolveCheckoutToken(req);
   if (!id || !checkoutToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return apiError(401, 'Unauthorized', 'UNAUTHORIZED');
   }
 
   const summary = await getBookingPublicSummary(id, checkoutToken);
-  if (!summary) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!summary) return apiError(404, 'Not found', 'NOT_FOUND');
   return NextResponse.json(summary);
 }

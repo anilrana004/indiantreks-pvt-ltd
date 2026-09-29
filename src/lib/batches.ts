@@ -62,10 +62,10 @@ function hashId(id: string): number {
 }
 
 /**
- * Seat counts are NOT authoritative inventory until DB capacity/holds ship.
- * Generated batches expose capacity for layout only — UI must not claim "N seats left".
+ * Seat counts are authoritative when Postgres inventory (trek_batches + booking_holds) is used.
+ * Catalog seatsLeft remain display hints until overlaid by getLiveDepartureBatches().
  */
-export const INVENTORY_IS_AUTHORITATIVE = false;
+export const INVENTORY_IS_AUTHORITATIVE = true;
 
 function pad(n: number) {
   return String(n).padStart(2, '0');
