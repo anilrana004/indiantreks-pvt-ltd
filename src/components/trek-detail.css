@@ -8417,12 +8417,12 @@ html.it-chrome-hidden .kg-page .kg-section {
 }
 
 .kg-section {
-  padding: 12px 0 14px;
+  padding: 18px 0 20px;
   border-bottom: 1px solid rgba(21, 128, 61, 0.07);
 }
 
 .kg-content > .kg-section:first-of-type {
-  padding-top: 4px;
+  padding-top: 8px;
 }
 
 /* Softer section cards â€” spacing & elevation */
@@ -8501,12 +8501,12 @@ html.it-chrome-hidden .kg-page .kg-section {
 
 @media (max-width: 767px) {
   .kg-main-layout {
-    margin-top: 10px;
-    gap: 12px;
+    margin-top: 12px;
+    gap: 14px;
   }
 
   .kg-section {
-    padding: 8px 0 10px;
+    padding: 14px 0 16px;
   }
 
   .kg-page .kg-highlight-card,
@@ -9364,7 +9364,7 @@ html.it-chrome-hidden .kg-page .kg-section {
 @media (max-width: 767px) {
   #highlight.kg-section {
     padding-top: 4px;
-    padding-bottom: 10px;
+    padding-bottom: 20px;
   }
 
   .kg-page .kg-highlight-card {
@@ -9602,7 +9602,7 @@ html.it-chrome-hidden .kg-page .kg-section {
   #highlight.kg-section {
     margin-top: 0;
     padding-top: 0;
-    padding-bottom: 10px;
+    padding-bottom: 20px;
   }
 
   .kg-page .kg-highlight-card {
@@ -9611,20 +9611,28 @@ html.it-chrome-hidden .kg-page .kg-section {
   }
 }
 
-/* Highlight → Overview: small visible gap (wins over earlier section padding) */
+/*
+ * Section rhythm: cards need clear separation without the old ~100px voids.
+ * Highlight → Overview uses a deliberate pair gap (~40px phone / ~48px desk).
+ */
+.kg-page {
+  --kg-section-gap-y: 20px;
+  --kg-section-pair-gap: 24px;
+}
+
 .kg-page #highlight.kg-section {
-  padding-bottom: 12px !important;
+  padding-bottom: var(--kg-section-pair-gap) !important;
   margin-bottom: 0 !important;
 }
 
 .kg-page #overview.kg-section {
-  padding-top: 12px !important;
+  padding-top: var(--kg-section-pair-gap) !important;
   margin-top: 0 !important;
 }
 
 .kg-page #highlight.kg-section .kg-highlight-card {
   margin-bottom: 0 !important;
-  padding-bottom: 14px !important;
+  padding-bottom: 16px !important;
 }
 
 .kg-page #highlight.kg-section .kg-highlight-more {
@@ -9636,20 +9644,34 @@ html.it-chrome-hidden .kg-page .kg-section {
 }
 
 @media (max-width: 767px) {
+  .kg-page {
+    --kg-section-gap-y: 16px;
+    --kg-section-pair-gap: 20px;
+  }
+
   .kg-page #highlight.kg-section {
-    padding-bottom: 10px !important;
+    padding-bottom: var(--kg-section-pair-gap) !important;
   }
 
   .kg-page #overview.kg-section {
-    padding-top: 10px !important;
+    padding-top: var(--kg-section-pair-gap) !important;
   }
 
   .kg-page #highlight.kg-section .kg-highlight-card {
-    padding-bottom: 12px !important;
+    padding-bottom: 14px !important;
   }
 
   .kg-page #highlight.kg-section .kg-highlight-more-actions {
-    margin-top: 8px !important;
+    margin-top: 10px !important;
+  }
+
+  /* Booking → Highlight: match the same calm rhythm */
+  .kg-booking-col {
+    margin-bottom: 12px !important;
+  }
+
+  .kg-main-layout {
+    gap: 16px;
   }
 }
 
