@@ -6,6 +6,7 @@ import {
   useEffect,
   useId,
   useState,
+  useSyncExternalStore,
   type ChangeEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,6 +18,10 @@ import './LeadCapturePopup.css';
 
 const STORAGE_KEY = 'it-lead-popup-dismissed';
 const OPEN_DELAY_MS = 1600;
+
+const subscribeNoop = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 const TRIP_CATEGORIES = [
   'Himalayan Trek',
@@ -60,7 +65,7 @@ const emptyForm: FormState = {
  */
 export default function LeadCapturePopup() {
   const titleId = useId();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeNoop, getClientSnapshot, getServerSnapshot);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [sending, setSending] = useState(false);
@@ -74,10 +79,6 @@ export default function LeadCapturePopup() {
     } catch {
       /* ignore */
     }
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
   }, []);
 
   useEffect(() => {
