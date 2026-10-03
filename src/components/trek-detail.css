@@ -9617,7 +9617,7 @@ html.it-chrome-hidden .kg-page .kg-section {
  */
 .kg-page {
   --kg-section-gap-y: 20px;
-  --kg-section-pair-gap: 24px;
+  --kg-section-pair-gap: 28px;
 }
 
 .kg-page #highlight.kg-section {
@@ -9646,7 +9646,7 @@ html.it-chrome-hidden .kg-page .kg-section {
 @media (max-width: 767px) {
   .kg-page {
     --kg-section-gap-y: 16px;
-    --kg-section-pair-gap: 20px;
+    --kg-section-pair-gap: 24px;
   }
 
   .kg-page #highlight.kg-section {
