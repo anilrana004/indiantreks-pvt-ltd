@@ -8,7 +8,7 @@ const destinations = [
   { name: 'Kedarkantha', state: 'Uttarakhand', rating: '4.9', dur: '5D/4N', price: 6999, img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80', href: '/treks/kedarkantha' },
   { name: 'Valley of Flowers', state: 'Uttarakhand', rating: '4.8', dur: '6D/5N', price: 8999, img: photos.vof, href: '/treks/valley-of-flowers' },
   { name: 'Hampta Pass', state: 'Himachal', rating: '4.7', dur: '5D/4N', price: 8499, img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80', href: '/treks/hampta-pass' },
-  { name: 'Chopta Tungnath', state: 'Uttarakhand', rating: '4.7', dur: '4D/3N', price: 5999, img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80', href: '/treks/chopta-tungnath' },
+  { name: 'Chopta Tungnath', state: 'Uttarakhand', rating: '4.7', dur: '4D/3N', price: 5999, img: photos.chopta, href: '/treks/chopta-tungnath' },
   { name: 'Everest Base Camp', state: 'Nepal', rating: '4.9', dur: '13D/12N', price: 74999, img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80', href: '/treks/everest-base-camp' },
   { name: 'Kedarnath Yatra', state: 'Uttarakhand', rating: '4.8', dur: '6D/5N', price: 9999, img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80', href: '/yatra/kedarnath-yatra' },
 ];

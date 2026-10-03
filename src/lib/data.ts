@@ -14,6 +14,11 @@ import {
 } from "@/lib/content/treks/nag-tibba/inclusion-exclusion-content";
 import { NAG_TIBBA_FAQ } from "@/lib/content/treks/nag-tibba/faq-content";
 import {
+  NAG_TIBBA_CARD,
+  NAG_TIBBA_GALLERY,
+  NAG_TIBBA_HERO,
+} from "@/lib/content/treks/nag-tibba/gallery-content";
+import {
   HAR_KI_DUN_EXCLUSIONS,
   HAR_KI_DUN_INCLUSIONS,
 } from "@/lib/content/treks/har-ki-dun/inclusion-exclusion-content";
@@ -24,9 +29,24 @@ import {
   KUARI_PASS_INCLUSIONS,
 } from "@/lib/content/treks/kuari-pass/inclusion-exclusion-content";
 import {
+  KUARI_PASS_CARD,
+  KUARI_PASS_GALLERY,
+  KUARI_PASS_HERO,
+} from "@/lib/content/treks/kuari-pass/gallery-content";
+import {
+  DAYARA_BUGYAL_CARD,
+  DAYARA_BUGYAL_GALLERY,
+  DAYARA_BUGYAL_HERO,
+} from "@/lib/content/treks/dayara-bugyal/gallery-content";
+import {
   CHOPTA_TUNGNATH_EXCLUSIONS,
   CHOPTA_TUNGNATH_INCLUSIONS,
 } from "@/lib/content/treks/chopta-tungnath/inclusion-exclusion-content";
+import {
+  CHOPTA_TUNGNATH_CARD,
+  CHOPTA_TUNGNATH_GALLERY,
+  CHOPTA_TUNGNATH_HERO,
+} from "@/lib/content/treks/chopta-tungnath/gallery-content";
 import type { ItineraryDay } from "@/lib/content/treks/types";
 import { photos } from "@/lib/media";
 import { EXTRA_SITE_PACKAGES, applyLiveSitePricing } from "@/lib/site-packages";
@@ -546,11 +566,8 @@ const baseTreks: Trek[] = [
     distance: "28 km",
     rating: "4.7",
     reviewCount: "7k+",
-    images: [
-      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-    ],
+    images: [...CHOPTA_TUNGNATH_GALLERY],
+    cardImage: CHOPTA_TUNGNATH_CARD,
     brief: "Perched high in the Garhwal Himalayas, the Tungnath–Chandrashila Trek blends spirituality with nature’s magnificence—the highest Shiva temple in the world and a 360° Himalayan summit.",
     description: "The journey begins at Chopta, the Mini Switzerland of India, and winds through rhododendron forests to Tungnath Temple and Chandrashila Peak.",
     highlights: [
@@ -575,7 +592,7 @@ const baseTreks: Trek[] = [
       { q: "Is Tungnath trek difficult?", a: "Easy to Moderate. The trail is well-defined and suitable for beginners." },
       { q: "Can I do this trek in winter?", a: "Yes, winter trekking is possible but requires proper snow gear." },
     ],
-    mapImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
+    mapImage: CHOPTA_TUNGNATH_HERO,
     groupSize: "6-15 persons",
     startEndPoint: "Rishikesh to Rishikesh",
   },
@@ -653,11 +670,8 @@ const baseTreks: Trek[] = [
     distance: "20 km",
     rating: "4.7",
     reviewCount: "6k+",
-    images: [
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-    ],
+    images: [...DAYARA_BUGYAL_GALLERY],
+    cardImage: DAYARA_BUGYAL_CARD,
     brief: "Dayara Bugyal is one of India's most beautiful alpine meadows, offering expansive rolling grasslands and panoramic views of the Gangotri massif.",
     description: "Dayara Bugyal is widely regarded as one of the most beautiful alpine meadows in India, spanning vast rolling grasslands at elevations above 11,000 feet. The trail winds through dense oak and rhododendron forests before opening up to expansive meadows with panoramic views of Srikanth, Gangotri, and Bandarpoonch peaks.",
     highlights: [
@@ -686,7 +700,7 @@ const baseTreks: Trek[] = [
       { q: "What is the best time for Dayara Bugyal?", a: "Summer (May-June) for lush green meadows, winter (Dec-Jan) for snow trekking." },
       { q: "Is this trek suitable for beginners?", a: "Yes, it's one of the most beginner-friendly high-altitude treks with gentle gradients." },
     ],
-    mapImage: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
+    mapImage: DAYARA_BUGYAL_HERO,
     groupSize: "6-15 persons",
     startEndPoint: "Rishikesh to Rishikesh",
   },
@@ -754,11 +768,8 @@ const baseTreks: Trek[] = [
     distance: "32 km",
     rating: "4.8",
     reviewCount: "7k+",
-    images: [
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-    ],
+    images: [...KUARI_PASS_GALLERY],
+    cardImage: KUARI_PASS_CARD,
     brief:
       "Experience the Legendary Lord Curzon Trail in the Garhwal Himalayas — oak and rhododendron forests, alpine Bugyals, traditional villages and panoramic views of Nanda Devi, Dronagiri, Kamet and Chaukhamba.",
     description: "",
@@ -779,7 +790,7 @@ const baseTreks: Trek[] = [
       { name: "Premium", price: 21999, originalPrice: 27999, deposit: 7000, badge: "Luxury", inclusions: ["Single tent option", "Premium sleeping bag (-15°C)", "Self-inflating mattress", "Gourmet meals", "Separate toilet & shower tents", "Black Diamond trekking poles", "Pickup from Joshimath helipad"], exclusions: ["Personal porters"] },
     ],
     faq: KUARI_PASS_FAQ,
-    mapImage: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
+    mapImage: KUARI_PASS_HERO,
     groupSize: "6-15 persons",
     startEndPoint: "Rishikesh to Rishikesh",
   },
@@ -800,11 +811,8 @@ const baseTreks: Trek[] = [
     distance: "Approx. 16 km",
     rating: "4.5",
     reviewCount: "8k+",
-    images: [
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
-    ],
+    images: [...NAG_TIBBA_GALLERY],
+    cardImage: NAG_TIBBA_CARD,
     brief: "The perfect weekend escape  -  a short, easy trek to the highest peak in the Nag Tibba range with sweeping views of the Garhwal Himalaya.",
     description: "Nag Tibba, meaning 'Serpent's Peak,' is the highest peak in the lesser Himalayan Nag Tibba range at 9,915 ft. This ideal introductory trek winds through dense oak, pine, and rhododendron forests with stunning views of snow-capped Bandarpoonch, Swargarohini, and Gangotri peaks from the summit.",
     highlights: [
@@ -824,7 +832,7 @@ const baseTreks: Trek[] = [
       { name: "Premium", price: 9999, originalPrice: 12999, deposit: 3000, badge: "Luxury", inclusions: ["Single tent option", "Premium sleeping bag (-5°C)", "Self-inflating mattress", "Gourmet meals", "Pickup & drop from Delhi bus"], exclusions: ["Personal insurance"] },
     ],
     faq: NAG_TIBBA_FAQ,
-    mapImage: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
+    mapImage: NAG_TIBBA_HERO,
     groupSize: "6-15 persons",
     startEndPoint: "Dehradun to Dehradun",
   },

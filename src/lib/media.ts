@@ -1,5 +1,10 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
 import { KEDARKANTHA_HERO } from '@/lib/content/treks/kedarkantha/gallery-content';
+import { PANGARCHULLA_HERO } from '@/lib/content/treks/pangarchulla/gallery-content';
+import { NAG_TIBBA_HERO } from '@/lib/content/treks/nag-tibba/gallery-content';
+import { KUARI_PASS_HERO } from '@/lib/content/treks/kuari-pass/gallery-content';
+import { BRAHMATAL_HERO } from '@/lib/content/treks/brahmatal/gallery-content';
+import { DAYARA_HERO } from '@/lib/content/treks/dayara-bugyal/gallery-content';
+import { CHOPTA_HERO } from '@/lib/content/treks/chopta-tungnath/gallery-content';
 
 /**
  * Reliable public photo URLs for hero / banners / category chips.
@@ -7,16 +12,6 @@ import { KEDARKANTHA_HERO } from '@/lib/content/treks/kedarkantha/gallery-conten
  */
 const u = (id: string, w = 1200, h = 800) =>
   `https://images.unsplash.com/${id}?ixlib=rb-4.0.3&auto=format&fit=crop&w=${w}&h=${h}&q=80`;
-
-/** Chopta Tungnath — Tungnath temple complex (Cloudinary, f_auto → WebP/AVIF). */
-const CHOPTA_HERO = ensureCldAuto(
-  'https://res.cloudinary.com/jum1mpl0/image/upload/v1790592538/pexels-vikas-bhandari-421561-10432965.jpg',
-);
-
-/** Dayara Bugyal — alpine meadow flock (Cloudinary, f_auto → WebP/AVIF). */
-const DAYARA_HERO = ensureCldAuto(
-  'https://res.cloudinary.com/jum1mpl0/image/upload/v1790592124/ashish-kumar-senapati-6eH51qNqyO8-unsplash.jpg',
-);
 
 export const photos = {
   himachal: u('photo-1626621341517-bbf3d9990a23', 1400, 900),
@@ -32,6 +27,10 @@ export const photos = {
   snow: u('photo-1483728642387-6c3bdd6c93e5', 1400, 900),
   vof: u('photo-1464822759023-fed622ff2c3b', 1400, 900),
   kedarkantha: KEDARKANTHA_HERO,
+  pangarchulla: PANGARCHULLA_HERO,
+  nagTibba: NAG_TIBBA_HERO,
+  kuariPass: KUARI_PASS_HERO,
+  brahmatal: BRAHMATAL_HERO,
   /** Women-only special program hero — golden-hour ridge trekkers */
   womenTrek: u('photo-1551632811-561732d1e306', 1400, 900),
   seniorTrek: u('photo-1464822759023-fed622ff2c3b', 1400, 900),

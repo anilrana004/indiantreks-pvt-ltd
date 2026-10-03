@@ -55,8 +55,8 @@ const emptyForm: FormState = {
 };
 
 /**
- * Desktop lead-capture popup — winter sale style, two-column layout.
- * Shows once per browser session after a short delay (lg+ only).
+ * Winter-sale lead popup — two-column on desktop, stacked card on phone.
+ * Shows once per browser session after a short delay.
  */
 export default function LeadCapturePopup() {
   const titleId = useId();
@@ -82,7 +82,6 @@ export default function LeadCapturePopup() {
 
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return;
-    if (window.matchMedia('(max-width: 1023px)').matches) return;
     try {
       if (sessionStorage.getItem(STORAGE_KEY) === '1') return;
     } catch {
@@ -173,7 +172,7 @@ export default function LeadCapturePopup() {
             alt=""
             fill
             priority
-            sizes="(min-width: 1024px) 420px, 0px"
+            sizes="(min-width: 1024px) 420px, 100vw"
             className="it-lead-popup__promo-img"
           />
           <div className="it-lead-popup__promo-shade" />

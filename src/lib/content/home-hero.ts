@@ -1,22 +1,13 @@
 import type { BannerItem } from '@/components/Banners';
 import { WINTER_TREKS_PROMO_BANNER } from '@/lib/content/home-banners';
 import { KEDARKANTHA_FEATURE, KEDARKANTHA_HOME_HERO } from '@/lib/content/treks/kedarkantha/gallery-content';
+import { KUARI_PASS_HOME_HERO } from '@/lib/content/treks/kuari-pass/gallery-content';
+import { BRAHMATAL_HOME_HERO } from '@/lib/content/treks/brahmatal/gallery-content';
 import {
   HOME_HIMALAYAN_DEFAULT_SEASON,
   type HomeHimalayanSeason,
 } from '@/lib/content/home-himalayan-treks';
-import { ensureCldAuto } from '@/lib/cloudinary';
 import { photos } from '@/lib/media';
-
-/** Homepage hero — Brahmatal frozen lake / snow ridge. */
-const BRAHMATAL_HOME_HERO = ensureCldAuto(
-  'https://res.cloudinary.com/jum1mpl0/image/upload/v1790523184/pexels-yunustug-35824318_1.jpg',
-);
-
-/** Homepage hero — Kuari Pass ridge trekker. */
-const KUARI_PASS_HOME_HERO = ensureCldAuto(
-  'https://res.cloudinary.com/jum1mpl0/image/upload/v1790523473/pexels-pranavsinh232-12764359_1.jpg',
-);
 
 export type HeroMobileBanner = {
   image: string;
@@ -197,8 +188,8 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'nag-tibba',
       name: 'Nag Tibba Trek',
       sub: 'Weekend Himalayan summit near Mussoorie — perfect first spring trek',
-      img: photos.uttarakhand,
-      featureImg: photos.uttarakhand,
+      img: photos.nagTibba,
+      featureImg: photos.nagTibba,
       t: 'trek',
       rating: '4.6',
       duration: '3D/2N',
