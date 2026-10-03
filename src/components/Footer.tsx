@@ -18,23 +18,23 @@ import './footer.css';
 const trustItems = [
   {
     icon: Mountain,
-    title: 'Curated Himalayan Adventures',
-    desc: 'Thoughtfully planned mountain journeys',
+    title: 'Curated Himalayan Journeys',
+    desc: 'Thoughtfully planned mountain experiences',
   },
   {
     icon: Shield,
-    title: 'Safety-Led Operations',
-    desc: 'Responsible travel with guided support',
+    title: 'Safety-First Operations',
+    desc: 'Responsible trekking with guided support',
   },
   {
     icon: Headphones,
-    title: 'Personal Assistance',
-    desc: 'Quick help before and after booking',
+    title: 'Personal Trek Assistance',
+    desc: 'Support from your first enquiry to the trail',
   },
   {
     icon: MapPinned,
-    title: 'Authentic Access',
-    desc: 'Meaningful routes and real experiences',
+    title: 'Local Himalayan Expertise',
+    desc: 'Experience the mountains with people who know them',
   },
 ];
 
