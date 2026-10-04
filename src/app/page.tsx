@@ -13,7 +13,7 @@ import FAQ from "@/components/FAQ";
 import Recognitions from "@/components/Recognitions";
 import Newsletter from "@/components/Newsletter";
 import HowItWorks from "@/components/home/HowItWorks";
-import { HOME_BANNERS } from "@/lib/content/home-banners";
+import { HOME_BANNERS, HOME_EXPLORE_BANNERS } from "@/lib/content/home-banners";
 import Banners from "@/components/Banners";
 import { fetchHomeFeaturedPosts } from "@/lib/knowledge/adapter";
 
@@ -28,8 +28,9 @@ export default async function Home() {
     <>
       <Hero />
       <ExploreCategories />
+      {/* Desktop explore strip (phone gets the same creatives inside Hero). */}
       <div className="hidden lg:block">
-        <Banners items={banners.explore} priorityFirst />
+        <Banners items={HOME_EXPLORE_BANNERS} priorityFirst />
       </div>
       <section id="upcoming-trips"><UpcomingTrips /></section>
       <Banners items={banners.book} />
