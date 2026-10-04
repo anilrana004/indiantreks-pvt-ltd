@@ -1,4 +1,4 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Nag Tibba trek photos — Cloudinary uploads (jum1mpl0).
@@ -38,5 +38,12 @@ export const NAG_TIBBA_GALLERY: readonly string[] = uniqueGalleryUrls(NAG_TIBBA_
 /** Primary hero — winter ridge / meadow light. */
 export const NAG_TIBBA_HERO = NAG_TIBBA_GALLERY[0]!;
 
-/** Listing / home card — snow forest vista. */
-export const NAG_TIBBA_CARD = NAG_TIBBA_GALLERY[1] ?? NAG_TIBBA_HERO;
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “NAG TIBA Trek” title baked into the photo.
+ * Width-only transform (no gravity crop) so the designed frame stays intact.
+ */
+export const NAG_TIBBA_CARD = cloudinaryAssetUrl(
+  'v1791144173/Golden_Alpine_Trek_Trail.png',
+  { w: 800, crop: 'scale' },
+);

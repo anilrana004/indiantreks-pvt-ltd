@@ -137,24 +137,23 @@
 
 .it-hiw__step-badge {
   position: absolute;
-  left: 50%;
-  bottom: -22px;
+  right: 12px;
+  bottom: 12px;
   z-index: 2;
-  transform: translateX(-50%);
-  min-width: 44px;
-  height: 44px;
-  padding: 0 12px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 3px solid #fff;
+  border: 2px solid rgba(255, 255, 255, 0.95);
   background: linear-gradient(135deg, var(--hiw-green-deep), var(--hiw-green));
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.04em;
-  box-shadow: 0 8px 20px rgba(21, 128, 61, 0.35);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.28);
 }
 
 .it-hiw__body {
@@ -162,7 +161,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 34px 18px 20px;
+  padding: 18px 18px 20px;
   min-height: 220px;
   overflow: hidden;
 }

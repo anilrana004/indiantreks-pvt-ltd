@@ -18,9 +18,13 @@ export interface BannerItem {
    * Designed creative: art already includes title/CTA — skip HTML overlays.
    */
   designed?: boolean;
+  /** Optional override; frame defaults to 3840×764. */
+  aspectRatio?: string;
+  /** CSS object-position when the strip needs a vertical nudge. */
+  objectPosition?: string;
 }
 
-/** Native winter banner size — every promo box matches this image ratio. */
+/** Canonical promo strip size — every banner box is exactly this ratio. */
 const BANNER_W = 3840;
 const BANNER_H = 764;
 const BANNER_ASPECT = `${BANNER_W} / ${BANNER_H}`;
@@ -37,12 +41,22 @@ function SlideImage({
   src,
   desktopSrc,
   alt,
+  objectPosition,
+  priority = false,
 }: {
   src: string;
   desktopSrc?: string;
   alt: string;
+  objectPosition?: string;
+  /** Eager-load the LCP slide only. */
+  priority?: boolean;
 }) {
   const desk = desktopSrc || src;
+  /** Slight zoom gives object-position room to nudge framing on exact-ratio art. */
+  const positionStyle = objectPosition
+    ? { objectPosition, transform: 'scale(1.06)' }
+    : undefined;
+  const sizes = '(max-width: 1024px) 100vw, min(1200px, 100vw)';
 
   return (
     <>
@@ -50,38 +64,44 @@ function SlideImage({
         src={src}
         alt={alt}
         fill
-        sizes="100vw"
+        sizes={sizes}
+        priority={priority}
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className="h-full w-full object-cover object-center lg:hidden"
+        style={positionStyle}
+        className={`h-full w-full object-cover lg:hidden ${objectPosition ? 'origin-center' : 'object-center'}`}
       />
       <Image
         src={desk}
         alt=""
         aria-hidden
         fill
-        sizes="100vw"
+        sizes={sizes}
+        priority={priority}
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
-        className="hidden h-full w-full object-cover object-center lg:block"
+        style={positionStyle}
+        className={`hidden h-full w-full object-cover lg:block ${objectPosition ? 'origin-center' : 'object-center'}`}
       />
     </>
   );
 }
 
 /**
- * Promo slider — box aspect ratio matches the banner image (3840×764).
- * Every homepage / embedded banner uses the same image-sized frame.
+ * Promo slider — every slide uses a fixed 3840×764 frame.
  */
 export default function Banners({
   items = defaultBanners,
   embedded = false,
+  priorityFirst = false,
 }: {
   items?: BannerItem[];
   /** When true, sits inside another page section without outer white band */
   embedded?: boolean;
+  /** Eager-load slide 0 (use once near the top of the page for LCP). */
+  priorityFirst?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [autoplayReady, setAutoplayReady] = useState(false);
@@ -130,11 +150,35 @@ export default function Banners({
 
   const designedActive = Boolean(items[index]?.designed);
 
+  const dots = count > 1 ? (
+    <div
+      className={
+        designedActive
+          ? 'relative z-20 mt-2.5 flex items-center justify-center gap-1.5'
+          : 'absolute bottom-2.5 right-2.5 z-20 flex items-center gap-1.5 lg:bottom-3.5 lg:right-3.5'
+      }
+    >
+      {items.map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          aria-label={`Show banner ${i + 1}`}
+          onClick={() => { pause(); goTo(i); }}
+          className={`h-1.5 rounded-full transition-all ${
+            i === index
+              ? 'bg-[#16a34a] w-5'
+              : designedActive
+                ? 'bg-black/30 w-1.5 hover:bg-black/50'
+                : 'bg-white/55 w-1.5 hover:bg-white/80'
+          }`}
+        />
+      ))}
+    </div>
+  ) : null;
+
   const slider = (
     <div
-      className={`relative w-full overflow-hidden rounded-[18px] shadow-sm ${
-        designedActive ? 'bg-transparent' : 'bg-[#1f2937]'
-      }`}
+      className={`relative w-full ${designedActive ? '' : 'overflow-hidden rounded-[18px] shadow-sm bg-[#1f2937]'}`}
       onPointerDown={pause}
       onMouseEnter={() => { pausedRef.current = true; }}
       onMouseLeave={() => { pausedRef.current = false; }}
@@ -147,9 +191,11 @@ export default function Banners({
         else goTo(index - 1);
       }}
     >
-      {/* Box sized to banner image ratio — full width, stable across all slides */}
+      {/* Fixed 3840×764 frame for every slide. */}
       <div
-        className="relative w-full shrink-0 overflow-hidden"
+        className={`relative w-full shrink-0 overflow-hidden ${
+          designedActive ? 'rounded-[18px] shadow-sm bg-[#f4f2ec]' : ''
+        }`}
         style={{ aspectRatio: BANNER_ASPECT }}
       >
         {items.map((b, i) => {
@@ -174,6 +220,8 @@ export default function Banners({
                 src={b.src}
                 desktopSrc={b.desktopSrc}
                 alt={b.title || 'Promo'}
+                objectPosition={b.objectPosition}
+                priority={priorityFirst && i === 0}
               />
 
               {!b.designed && (
@@ -212,29 +260,7 @@ export default function Banners({
         })}
       </div>
 
-      {count > 1 && (
-        <div
-          className={`absolute bottom-2.5 z-20 flex items-center gap-1.5 lg:bottom-3.5 ${
-            designedActive ? 'left-2.5 lg:left-3.5' : 'right-2.5 lg:right-3.5'
-          }`}
-        >
-          {items.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Show banner ${i + 1}`}
-              onClick={() => { pause(); goTo(i); }}
-              className={`h-1.5 rounded-full transition-all ${
-                i === index
-                  ? 'bg-[#16a34a] w-5'
-                  : designedActive
-                    ? 'bg-black/30 w-1.5 hover:bg-black/50'
-                    : 'bg-white/55 w-1.5 hover:bg-white/80'
-              }`}
-            />
-          ))}
-        </div>
-      )}
+      {dots}
     </div>
   );
 

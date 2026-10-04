@@ -1,4 +1,4 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Brahmatal trek photos — Cloudinary uploads (jum1mpl0).
@@ -34,8 +34,15 @@ export const BRAHMATAL_GALLERY: readonly string[] = uniqueGalleryUrls(BRAHMATAL_
 /** Primary hero. */
 export const BRAHMATAL_HERO = BRAHMATAL_GALLERY[0]!;
 
-/** Listing / home card. */
-export const BRAHMATAL_CARD = BRAHMATAL_GALLERY[1] ?? BRAHMATAL_HERO;
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “BRAHMATAL Trek” title baked into the photo.
+ * Width-only transform (no gravity crop) so the designed frame stays intact.
+ */
+export const BRAHMATAL_CARD = cloudinaryAssetUrl(
+  'v1791143667/Brahmatal_Trek_Snowy_Mountain_Adventure.png',
+  { w: 800, crop: 'scale' },
+);
 
 /** Homepage seasonal hero. */
 export const BRAHMATAL_HOME_HERO = BRAHMATAL_HERO;

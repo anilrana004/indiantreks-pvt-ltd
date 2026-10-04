@@ -29,7 +29,7 @@ export default async function Home() {
       <Hero />
       <ExploreCategories />
       <div className="hidden lg:block">
-        <Banners items={banners.explore} />
+        <Banners items={banners.explore} priorityFirst />
       </div>
       <section id="upcoming-trips"><UpcomingTrips /></section>
       <Banners items={banners.book} />

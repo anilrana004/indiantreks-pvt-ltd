@@ -5,9 +5,19 @@ import {
   KUARI_PASS_CARD,
   KUARI_PASS_HOME_HERO,
 } from '@/lib/content/treks/kuari-pass/gallery-content';
-import { BRAHMATAL_HOME_HERO } from '@/lib/content/treks/brahmatal/gallery-content';
-import { PANGARCHULLA_HERO } from '@/lib/content/treks/pangarchulla/gallery-content';
-import { NAG_TIBBA_HERO } from '@/lib/content/treks/nag-tibba/gallery-content';
+import {
+  BRAHMATAL_CARD,
+  BRAHMATAL_HOME_HERO,
+} from '@/lib/content/treks/brahmatal/gallery-content';
+import {
+  PANGARCHULLA_CARD,
+  PANGARCHULLA_HERO,
+} from '@/lib/content/treks/pangarchulla/gallery-content';
+import {
+  NAG_TIBBA_CARD,
+  NAG_TIBBA_HERO,
+} from '@/lib/content/treks/nag-tibba/gallery-content';
+import { KASHMIR_GREAT_LAKES_CARD } from '@/lib/content/treks/kashmir-great-lakes/gallery-content';
 import {
   HOME_HIMALAYAN_DEFAULT_SEASON,
   type HomeHimalayanSeason,
@@ -111,7 +121,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'pangarchulla',
       name: 'Pangarchulla Peak Trek',
       sub: 'Summit day above the Kuari trail — Nanda Devi, Dronagiri & Hathi–Ghoda close-ups',
-      img: PANGARCHULLA_HERO,
+      img: PANGARCHULLA_CARD,
       featureImg: PANGARCHULLA_HERO,
       t: 'trek',
       rating: '4.7',
@@ -127,7 +137,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'nag-tibba',
       name: 'Nag Tibba Trek',
       sub: 'Perfect weekend snow trek near Dehradun — forests, summit views & first-timer friendly',
-      img: NAG_TIBBA_HERO,
+      img: NAG_TIBBA_CARD,
       featureImg: NAG_TIBBA_HERO,
       t: 'trek',
       rating: '4.8',
@@ -159,7 +169,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'brahmatal',
       name: 'Brahmatal Trek',
       sub: 'Frozen alpine lakes, oak forests & Trishul–Nanda Ghunti views in peak winter',
-      img: BRAHMATAL_HOME_HERO,
+      img: BRAHMATAL_CARD,
       featureImg: BRAHMATAL_HOME_HERO,
       t: 'trek',
       rating: '4.8',
@@ -225,7 +235,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'nag-tibba',
       name: 'Nag Tibba Trek',
       sub: 'Weekend Himalayan summit near Mussoorie — perfect first spring trek',
-      img: photos.nagTibba,
+      img: NAG_TIBBA_CARD,
       featureImg: photos.nagTibba,
       t: 'trek',
       rating: '4.6',
@@ -275,7 +285,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'kashmir-great-lakes',
       name: 'Kashmir Great Lakes Trek',
       sub: 'Alpine lakes of Sonamarg — emerald waters & high Himalayan meadows',
-      img: photos.uttarakhand,
+      img: KASHMIR_GREAT_LAKES_CARD,
       featureImg: photos.uttarakhand,
       t: 'trek',
       rating: '4.9',

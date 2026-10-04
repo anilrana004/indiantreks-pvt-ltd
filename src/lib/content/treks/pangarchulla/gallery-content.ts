@@ -1,4 +1,4 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Pangarchulla Peak trek photos — Cloudinary uploads (jum1mpl0).
@@ -35,5 +35,12 @@ export const PANGARCHULLA_GALLERY: readonly string[] = uniqueGalleryUrls(PANGARC
 /** Primary hero — Garhwal peak panorama. */
 export const PANGARCHULLA_HERO = PANGARCHULLA_GALLERY[0]!;
 
-/** Listing / home card — trekkers on the snowy ridge. */
-export const PANGARCHULLA_CARD = PANGARCHULLA_GALLERY[1] ?? PANGARCHULLA_HERO;
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “PANGARCHULLA Trek” title baked into the photo.
+ * Width-only transform (no gravity crop) so the designed frame stays intact.
+ */
+export const PANGARCHULLA_CARD = cloudinaryAssetUrl(
+  'v1791143724/Pangarchulla_Trek_Mountain_Poster.png',
+  { w: 800, crop: 'scale' },
+);

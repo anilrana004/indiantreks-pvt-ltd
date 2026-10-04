@@ -3,13 +3,13 @@ import { photos } from '@/lib/media';
 import { cloudinaryAssetUrl } from '@/lib/cloudinary';
 
 /**
- * Designed promo strips target ~5:1 (this winter banner is native 3840×764).
- * Width-only scale preserves the full poster.
+ * Designed promo strips — width-only scale of native 3840×764 art.
+ * f_auto/q_auto keep bytes low; no pad/fill so framing stays intact.
  */
 function designedStripBanner(assetPath: string) {
   return {
     mobile: cloudinaryAssetUrl(assetPath, {
-      w: 1000,
+      w: 1280,
       crop: 'scale',
     }),
     desktop: cloudinaryAssetUrl(assetPath, {
@@ -19,17 +19,33 @@ function designedStripBanner(assetPath: string) {
   };
 }
 
-/** India's Best Winter Treks — homepage explore slide 1 (3840×764). */
+/** India's Best Winter Treks — homepage explore slide 1. */
 const winterTreksBanner = designedStripBanner(
-  'v1790671201/da643e9dd79318e249d79083561f96e661437025-3840x764.avif',
+  'v1791151369/indias_best_winter_treks_3840x764.png',
 );
 
 /**
- * Kedarkantha winter pre-sell creative.
- * Native ~2172×724 (≈3:1).
+ * Kedarkantha winter pre-sell creative (designed strip, 10% off).
+ * Asset: kedarkantha_trek_banner_3840x764.png
  */
 const kedarkanthaWinterBanner = designedStripBanner(
-  'v1788533034/ChatGPT_Image_Sep_4_2026_08_13_25_PM.png',
+  'v1791150641/kedarkantha_trek_banner_3840x764.png',
+);
+
+/**
+ * Char Dham Yatra — sacred Himalayan journey (designed strip).
+ * Asset: char_dham_sacred_himalayan_journey_3840x764.png
+ */
+const charDhamYatraBanner = designedStripBanner(
+  'v1791151503/char_dham_sacred_himalayan_journey_3840x764.png',
+);
+
+/**
+ * Himachal Pradesh adventure — designed strip.
+ * Asset: himachal_pradesh_trekking_banner_3840x764.png
+ */
+const himachalAdventureBanner = designedStripBanner(
+  'v1791151090/himachal_pradesh_trekking_banner_3840x764.png',
 );
 
 /** Shared winter-treks designed promo (hero mobile strip + homepage explore). */
@@ -39,6 +55,8 @@ export const WINTER_TREKS_PROMO_BANNER: BannerItem = {
   href: '/treks?season=winter',
   title: "India's Best Winter Treks",
   designed: true,
+  /** Nudge framing up so title / icon row sit clearer in the strip. */
+  objectPosition: 'center 36%',
 };
 
 export type HomeBannerGroup =
@@ -56,12 +74,24 @@ export const HOME_BANNERS: Record<HomeBannerGroup, BannerItem[]> = {
     {
       src: kedarkanthaWinterBanner.mobile,
       desktopSrc: kedarkanthaWinterBanner.desktop,
-      href: '/treks?season=winter',
+      href: '/treks/kedarkantha',
       title: 'Kedarkantha Trek — Pre Sell · Flat 10% Off',
       designed: true,
     },
-    { src: photos.himachal, href: '/treks?region=himachal', title: 'Himachal  -  Adventure Capital', subtitle: '8 breathtaking treks  -  Hampta, Triund, Bhrigu Lake, Kheerganga & more', badge: 'Himachal', discount: 'Explore Himachal' },
-    { src: photos.yatra, href: '/yatra', title: 'Sacred Yatras  -  Spiritual Himalaya', subtitle: 'Kedarnath · Do Dham · Char Dham · Panch Kedar  -  divine journeys', badge: 'Yatra', discount: 'Plan Your Yatra' },
+    {
+      src: charDhamYatraBanner.mobile,
+      desktopSrc: charDhamYatraBanner.desktop,
+      href: '/yatra',
+      title: 'Char Dham Yatra — Sacred Himalayan Journey',
+      designed: true,
+    },
+    {
+      src: himachalAdventureBanner.mobile,
+      desktopSrc: himachalAdventureBanner.desktop,
+      href: '/treks?region=himachal',
+      title: 'Himachal Pradesh — Adventure Capital',
+      designed: true,
+    },
   ],
   book: [
     { src: photos.kedarkantha, href: '/treks', title: 'Book Now, Pay in EMIs', subtitle: 'Reserve your spot with just ₹799  -  pay the rest later', badge: '0% EMI', discount: 'Pay Later Available' },

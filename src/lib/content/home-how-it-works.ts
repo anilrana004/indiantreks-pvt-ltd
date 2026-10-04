@@ -1,4 +1,4 @@
-import { photos } from '@/lib/media';
+import { ensureCldAuto } from '@/lib/cloudinary';
 
 export type HowItWorksStep = {
   id: string;
@@ -9,6 +9,21 @@ export type HowItWorksStep = {
   icon: string;
   href: string;
 };
+
+/** Step 01 media — planning trek on a Himalayan ridge (Choose Your Trip). */
+const CHOOSE_YOUR_TRIP_IMG = ensureCldAuto(
+  'https://res.cloudinary.com/jum1mpl0/image/upload/v1791145430/WhatsApp_Image_2026-09-30_at_15.13.30_2.jpg',
+);
+
+/** Step 02 media — booking confirmed with balance due (Book & Pay Later). */
+const BOOK_PAY_LATER_IMG = ensureCldAuto(
+  'https://res.cloudinary.com/jum1mpl0/image/upload/v1791145586/WhatsApp_Image_2026-09-30_at_15.13.47.jpg',
+);
+
+/** Step 03 media — group on trail toward Himalayan peaks (Go on Adventure). */
+const GO_ON_ADVENTURE_IMG = ensureCldAuto(
+  'https://res.cloudinary.com/jum1mpl0/image/upload/v1791145688/WhatsApp_Image_2026-09-30_at_15.13.58.jpg',
+);
 
 export const HOW_IT_WORKS_SECTION = {
   kicker: 'How It Works',
@@ -23,8 +38,8 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
     id: 'choose-trip',
     n: '01',
     title: ['Choose', 'Your Trip'],
-    desc: 'Browse our curated treks, yatras, and adventure tours. Filter by region, difficulty, and season to find your perfect match.',
-    img: photos.prepHero,
+    desc: 'Discover handpicked Himalayan treks, peak expeditions and adventure journeys. Choose your destination, difficulty level and departure date to find the right trek for you.',
+    img: CHOOSE_YOUR_TRIP_IMG,
     icon: 'fa-solid fa-compass',
     href: '/treks',
   },
@@ -32,8 +47,8 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
     id: 'book-pay-later',
     n: '02',
     title: ['Book', '& Pay Later'],
-    desc: 'Reserve your spot with just ₹799 deposit. Pay the rest in installments or in full — your journey, your pace.',
-    img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=560&q=80',
+    desc: 'Secure your trek with a simple and transparent booking process. Flexible payment options make it easy to reserve your spot and prepare for your Himalayan adventure.',
+    img: BOOK_PAY_LATER_IMG,
     icon: 'fa-solid fa-wallet',
     href: '/treks',
   },
@@ -41,8 +56,8 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
     id: 'go-adventure',
     n: '03',
     title: ['Go on', 'Adventure'],
-    desc: 'Meet fellow trekkers, follow expert guides, and make memories for a lifetime. We handle everything — you just explore.',
-    img: photos.womenTrek,
+    desc: 'Trek with experienced local guides and a dedicated ground team. From the trailhead to the summit, we take care of the essentials while you focus on the mountains.',
+    img: GO_ON_ADVENTURE_IMG,
     icon: 'fa-solid fa-person-hiking',
     href: '/treks',
   },
