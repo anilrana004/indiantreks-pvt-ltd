@@ -343,7 +343,7 @@ export default function Hero() {
         <CategoryScroller items={catItems} variant="mobile" />
 
         <div className="mt-4">
-          <Banners items={explorePromos} embedded />
+          <Banners items={explorePromos} embedded priorityFirst />
         </div>
       </div>
     </section>

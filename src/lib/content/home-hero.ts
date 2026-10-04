@@ -1,5 +1,5 @@
 import type { BannerItem } from '@/components/Banners';
-import { WINTER_TREKS_PROMO_BANNER } from '@/lib/content/home-banners';
+import { HOME_EXPLORE_BANNERS } from '@/lib/content/home-banners';
 import { KEDARKANTHA_FEATURE, KEDARKANTHA_HOME_HERO } from '@/lib/content/treks/kedarkantha/gallery-content';
 import {
   KUARI_PASS_CARD,
@@ -56,12 +56,8 @@ export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
   { image: photos.nepal, title: 'International Expeditions', subtitle: 'EBC – Annapurna – Nepal Backpacking Circuit', cta: 'Explore Global', href: '/treks?region=nepal' },
 ];
 
-export const HERO_EXPLORE_PROMOS: BannerItem[] = [
-  WINTER_TREKS_PROMO_BANNER,
-  { src: photos.yatra, href: '/yatra', title: 'Sacred Yatras – Spiritual Himalaya', subtitle: 'Kedarnath · Do Dham · Char Dham · Panch Kedar – divine journeys', badge: 'Yatra', discount: 'Plan Your Yatra' },
-  { src: photos.uttarakhand, href: '/treks?region=uttarakhand', title: 'Uttarakhand – Land of Gods & Treks', subtitle: '10 iconic Himalayan treks across Chopta, Kedarkantha & beyond', badge: 'Uttarakhand', discount: 'View All Treks' },
-  { src: photos.himachal, href: '/treks?region=himachal', title: 'Himachal – Adventure Capital', subtitle: 'Hampta, Triund, Bhrigu Lake, Kheerganga & more', badge: 'Himachal', discount: 'Explore Himachal' },
-];
+/** Phone hero explore strip — same designed creatives as desktop explore. */
+export const HERO_EXPLORE_PROMOS: BannerItem[] = HOME_EXPLORE_BANNERS;
 
 /**
  * Desktop hero slides by season.

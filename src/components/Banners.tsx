@@ -68,8 +68,7 @@ function SlideImage({
         alt={alt}
         fill
         sizes={sizes}
-        /** Explore LCP is desktop-only — don’t double-fetch a priority mobile asset. */
-        priority={false}
+        priority={priority}
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"
@@ -82,6 +81,7 @@ function SlideImage({
         aria-hidden
         fill
         sizes={sizes}
+        /** Desktop LCP uses desk art; mobile LCP uses `src` above. */
         priority={priority}
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}

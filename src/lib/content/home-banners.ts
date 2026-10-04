@@ -68,35 +68,41 @@ export type HomeBannerGroup =
   | 'trek'
   | 'community';
 
+/**
+ * Shared explore strip — used on desktop homepage AND phone hero.
+ * Keep a single source so mobile never drifts from desktop creatives.
+ */
+export const HOME_EXPLORE_BANNERS: BannerItem[] = [
+  WINTER_TREKS_PROMO_BANNER,
+  {
+    src: kedarkanthaWinterBanner.mobile,
+    desktopSrc: kedarkanthaWinterBanner.desktop,
+    href: '/treks/kedarkantha',
+    title: 'Kedarkantha Trek — Pre Sell · Flat 10% Off',
+    designed: true,
+  },
+  {
+    src: charDhamYatraBanner.mobile,
+    desktopSrc: charDhamYatraBanner.desktop,
+    href: '/yatra',
+    title: 'Char Dham Yatra — Sacred Himalayan Journey',
+    designed: true,
+    /** Tiny upward nudge so title / icon row clear the strip edge. */
+    objectPosition: 'center 45%',
+  },
+  {
+    src: himachalAdventureBanner.mobile,
+    desktopSrc: himachalAdventureBanner.desktop,
+    href: '/treks?region=himachal',
+    title: 'Himachal Pradesh — Adventure Capital',
+    designed: true,
+    /** Tiny upward nudge so title / icon row clear the strip edge. */
+    objectPosition: 'center 45%',
+  },
+];
+
 export const HOME_BANNERS: Record<HomeBannerGroup, BannerItem[]> = {
-  explore: [
-    WINTER_TREKS_PROMO_BANNER,
-    {
-      src: kedarkanthaWinterBanner.mobile,
-      desktopSrc: kedarkanthaWinterBanner.desktop,
-      href: '/treks/kedarkantha',
-      title: 'Kedarkantha Trek — Pre Sell · Flat 10% Off',
-      designed: true,
-    },
-    {
-      src: charDhamYatraBanner.mobile,
-      desktopSrc: charDhamYatraBanner.desktop,
-      href: '/yatra',
-      title: 'Char Dham Yatra — Sacred Himalayan Journey',
-      designed: true,
-      /** Tiny upward nudge so title / icon row clear the strip edge. */
-      objectPosition: 'center 45%',
-    },
-    {
-      src: himachalAdventureBanner.mobile,
-      desktopSrc: himachalAdventureBanner.desktop,
-      href: '/treks?region=himachal',
-      title: 'Himachal Pradesh — Adventure Capital',
-      designed: true,
-      /** Tiny upward nudge so title / icon row clear the strip edge. */
-      objectPosition: 'center 45%',
-    },
-  ],
+  explore: HOME_EXPLORE_BANNERS,
   book: [
     { src: photos.kedarkantha, href: '/treks', title: 'Book Now, Pay in EMIs', subtitle: 'Reserve your spot with just ₹799  -  pay the rest later', badge: '0% EMI', discount: 'Pay Later Available' },
     { src: photos.himachal, href: '/treks', title: 'Flexible Payment Options', subtitle: 'Choose full payment or easy installments at checkout', badge: 'No Cost EMI', discount: 'Check Availability' },
