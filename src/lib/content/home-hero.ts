@@ -1,7 +1,10 @@
 import type { BannerItem } from '@/components/Banners';
 import { WINTER_TREKS_PROMO_BANNER } from '@/lib/content/home-banners';
 import { KEDARKANTHA_FEATURE, KEDARKANTHA_HOME_HERO } from '@/lib/content/treks/kedarkantha/gallery-content';
-import { KUARI_PASS_HOME_HERO } from '@/lib/content/treks/kuari-pass/gallery-content';
+import {
+  KUARI_PASS_CARD,
+  KUARI_PASS_HOME_HERO,
+} from '@/lib/content/treks/kuari-pass/gallery-content';
 import { BRAHMATAL_HOME_HERO } from '@/lib/content/treks/brahmatal/gallery-content';
 import { PANGARCHULLA_HERO } from '@/lib/content/treks/pangarchulla/gallery-content';
 import { NAG_TIBBA_HERO } from '@/lib/content/treks/nag-tibba/gallery-content';
@@ -92,7 +95,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'kuari-pass',
       name: 'Kuari Pass Trek',
       sub: 'Lord Curzon Trail — snow Bugyals and panoramic views of Nanda Devi & Chaukhamba',
-      img: KUARI_PASS_HOME_HERO,
+      img: KUARI_PASS_CARD,
       featureImg: KUARI_PASS_HOME_HERO,
       t: 'trek',
       rating: '4.8',
@@ -190,7 +193,7 @@ export const HERO_DESK_SLIDES_BY_SEASON: Record<HomeHimalayanSeason, HeroDesktop
       id: 'kuari-pass',
       name: 'Kuari Pass Trek',
       sub: 'Lord Curzon Trail in spring bloom — rhododendrons, Bugyals & Nanda Devi views',
-      img: KUARI_PASS_HOME_HERO,
+      img: KUARI_PASS_CARD,
       featureImg: KUARI_PASS_HOME_HERO,
       t: 'trek',
       rating: '4.8',
