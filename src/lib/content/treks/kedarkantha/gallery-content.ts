@@ -57,8 +57,12 @@ export const KEDARKANTHA_HOME_HERO = ensureCldAuto(
 /** Secondary hero panel — Juda Ka Talab winter scene. */
 export const KEDARKANTHA_FEATURE = KEDARKANTHA_GALLERY[2];
 
-/** Listing / home card cover only — not used on the trek detail page. */
-export const KEDARKANTHA_CARD = kedarkanthaImage(
-  'v1788514322/ChatGPT_Image_Sep_4_2026_03_00_26_PM.png',
-  800,
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “KEDARKANTHA Trek” title baked into the photo.
+ * Width-only transform (no gravity crop) so the designed frame stays intact.
+ */
+export const KEDARKANTHA_CARD = cloudinaryAssetUrl(
+  'v1791136648/Kedarkantha_Trek_Snowy_Adventure_Poster.png',
+  { w: 800, crop: 'scale' },
 );

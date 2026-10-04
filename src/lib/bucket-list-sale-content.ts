@@ -29,12 +29,9 @@ function saleTrip(card: CatalogCard, ctaLabel?: string): TrendingLandingTrip {
 }
 
 const WEEKEND_IDS = new Set([
-  'nag-tibba',
-  'mcleodganj-trek',
-  'kheerganga',
-  'beas-kund',
-  'bhrigu-lake',
+  'auli-chopta-tungnath',
   'chopta-tungnath',
+  'nag-tibba',
 ]);
 
 const bestsellers = getBestSellerBuckets();

@@ -1,4 +1,4 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Kuari Pass trek photos — Cloudinary uploads (jum1mpl0).
@@ -44,8 +44,15 @@ export const KUARI_PASS_GALLERY: readonly string[] = uniqueGalleryUrls(KUARI_PAS
 /** Primary hero — ascent toward Kuari Pass. */
 export const KUARI_PASS_HERO = KUARI_PASS_GALLERY[0]!;
 
-/** Listing / home card. */
-export const KUARI_PASS_CARD = KUARI_PASS_GALLERY[1] ?? KUARI_PASS_HERO;
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “KUARI PASS Trek” title baked into the photo.
+ * Width-only transform (no gravity crop) so the designed frame stays intact.
+ */
+export const KUARI_PASS_CARD = cloudinaryAssetUrl(
+  'v1791136822/Kuari_Pass_Trek_Through_Snowy_Pines.png',
+  { w: 800, crop: 'scale' },
+);
 
 /**
  * Homepage seasonal hero — exact delivery (no aggressive crop) for object-cover.

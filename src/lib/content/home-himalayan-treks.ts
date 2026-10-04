@@ -39,12 +39,12 @@ export const HOME_HIMALAYAN_SEASON_COPY: Record<
 export const HOME_HIMALAYAN_SEASON_TREK_IDS: Record<HomeHimalayanSeason, readonly string[]> = {
   Winter: [
     'kedarkantha',
-    'brahmatal',
-    'kuari-pass',
-    'dayara-bugyal',
     'chopta-tungnath',
-    'nag-tibba',
+    'kuari-pass',
     'pangarchulla',
+    'nag-tibba',
+    'dayara-bugyal',
+    'brahmatal',
   ],
   Spring: [
     'har-ki-dun',

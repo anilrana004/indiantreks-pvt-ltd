@@ -1,4 +1,4 @@
-import { getSiteTreks, toCatalogCard } from '@/lib/catalog';
+import { toCatalogCard } from '@/lib/catalog';
 import { treks } from '@/lib/data';
 import { photos } from '@/lib/media';
 import {
@@ -9,100 +9,56 @@ import type { GroupJourneyPremiumHeroConfig } from '@/lib/group-journey-hero-typ
 import type { TrendingLandingConfig } from '@/lib/trending-landing-types';
 import { tripFromCatalog } from '@/lib/trending-landing-utils';
 
-/** Short Himalayan escapes — ≤3 days or known weekend classics. */
+/**
+ * Curated weekend shortlist — order is intentional for the landing page.
+ * 1) Auli + Chopta Tungnath Chandrashila
+ * 2) Chopta Tungnath Chandrashila
+ * 3) Nag Tibba
+ */
 const WEEKEND_IDS = [
-  'nag-tibba',
-  'mcleodganj-trek',
-  'kheerganga',
-  'beas-kund',
-  'bhrigu-lake',
+  'auli-chopta-tungnath',
   'chopta-tungnath',
-  'dayara-bugyal',
+  'nag-tibba',
 ] as const;
 
 function weekendCards() {
   const byId = new Map(treks.map((t) => [t.id, t]));
-  const fromIds = WEEKEND_IDS.map((id) => byId.get(id)).filter(Boolean).map((t) => toCatalogCard(t!));
-
-  if (fromIds.length >= 4) return fromIds;
-
-  const short = getSiteTreks().filter((c) => {
-    const days = Number(c.dur.match(/(\d+)D/)?.[1] ?? 99);
-    return days <= 3 || /easy/i.test(c.difficulty);
-  });
-  return [...fromIds, ...short.filter((c) => !fromIds.some((f) => f.id === c.id))].slice(0, 8);
+  return WEEKEND_IDS.map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((t) => toCatalogCard(t!));
 }
 
 const all = weekendCards();
 
-const himachal = all.filter((c) => c.region === 'himachal');
-const uttarakhand = all.filter((c) => c.region === 'uttarakhand');
-const other = all.filter((c) => c.region !== 'himachal' && c.region !== 'uttarakhand');
-
-const himachalSection = {
-  id: 'himachal',
-  kicker: 'Himachal Pradesh',
-  title: 'Himachal Weekend Treks',
+const featuredSection = {
+  id: 'featured-weekends',
+  kicker: 'Long weekend ready',
+  title: 'Weekend Treks',
   intro:
-    'Quick escapes from Delhi and Chandigarh — Triund, Kheerganga, Beas Kund and Bhrigu Lake for a short mountain reset.',
-  trips: himachal.map((c) => tripFromCatalog(c, { ctaLabel: 'View Trek' })),
+    'Three short Garhwal escapes — Auli with Chopta–Tungnath–Chandrashila, the classic Chopta summit trail, and Nag Tibba near Dehradun.',
+  trips: all.map((c) => tripFromCatalog(c, { ctaLabel: 'View Trek' })),
 };
 
-const uttarakhandSection = {
-  id: 'uttarakhand',
-  kicker: 'Uttarakhand',
-  title: 'Uttarakhand Weekend Treks',
-  intro:
-    'Nag Tibba, Chopta–Tungnath and Dayara Bugyal — short Garhwal trails with big Himalayan views.',
-  trips: uttarakhand.map((c) => tripFromCatalog(c, { ctaLabel: 'View Trek' })),
-};
-
-const moreSection =
-  other.length > 0
-    ? {
-        id: 'more-weekends',
-        kicker: 'Quick escapes',
-        title: 'More Short Treks',
-        intro: 'Additional easy and easy-to-moderate routes that fit a long weekend.',
-        trips: other.map((c) => tripFromCatalog(c, { ctaLabel: 'View Trek' })),
-      }
-    : null;
-
-const tripSections = [
-  himachalSection.trips.length ? himachalSection : null,
-  uttarakhandSection.trips.length ? uttarakhandSection : null,
-  moreSection,
-].filter(Boolean) as NonNullable<typeof himachalSection>[];
-
-// Fallback if filters emptied somehow
-if (tripSections.length === 0) {
-  tripSections.push({
-    id: 'all-weekends',
-    kicker: 'Short escapes',
-    title: 'Weekend Group Treks',
-    intro: 'Short Himalayan trails designed for Friday–Sunday travellers.',
-    trips: all.map((c) => tripFromCatalog(c, { ctaLabel: 'View Trek' })),
-  });
-}
+const tripSections = [featuredSection];
 
 export const weekendTripsLandingConfig: TrendingLandingConfig = {
   slug: 'weekend-trips',
   heroImage: photos.weekendHero,
-  heroEyebrow: '2–3 days · Easy trails',
+  heroEyebrow: '2–4 days · Easy trails',
   heroTitle: 'Weekend Trips',
   heroLead:
-    'Short Himalayan escapes you can fit into a long weekend — easy trails, fixed departures and like-minded groups from Indian Treks.',
+    'Short Himalayan escapes you can fit into a long weekend — Auli–Chopta, Tungnath–Chandrashila and Nag Tibba with Indian Treks.',
   heroPrimaryCta: { label: 'Browse Weekends', targetId: 'explore-weekends' },
   heroWhatsappMsg: 'Hi Indian Treks! I want help choosing a weekend trek.',
   journeyHero: {
-    badgePrimary: '2–3 days',
+    badgePrimary: '2–4 days',
     badgeSecondary: 'Easy trails',
     badgeIcon: 'calendar',
     titleLine1: 'Weekend',
     titleLine2: 'Trips',
     leadBefore: 'Short Himalayan escapes you can fit into a long weekend — ',
-    leadHighlight: 'easy trails, fixed departures and like-minded groups',
-    leadAfter: ' from Indian Treks.',
+    leadHighlight: 'Auli–Chopta, Tungnath–Chandrashila and Nag Tibba',
+    leadAfter: ' with Indian Treks.',
     primaryCtaLabel: 'Browse Weekends',
     primaryCtaTargetId: 'explore-weekends',
     whatsappMsg: 'Hi Indian Treks! I want help choosing a weekend trek.',
@@ -115,30 +71,23 @@ export const weekendTripsLandingConfig: TrendingLandingConfig = {
   } satisfies GroupJourneyPremiumHeroConfig,
   stickyNav: [
     { id: 'explore-weekends', label: 'Weekends', icon: 'mountain' },
-    ...tripSections.map((s) => ({
-      id: s.id,
-      label: s.id === 'himachal' ? 'Himachal' : s.id === 'uttarakhand' ? 'Uttarakhand' : 'More',
-      icon: 'mountain' as const,
-    })),
+    { id: 'featured-weekends', label: 'Treks', icon: 'mountain' },
   ],
   exploreSection: {
     id: 'explore-weekends',
     kicker: 'Short escapes',
-    title: 'Weekend Treks by Region',
+    title: 'Our Weekend Treks',
     intro:
-      'Pick a region and explore short group treks with confirmed dates, clear difficulty and Delhi-friendly logistics.',
-    cards: tripSections.map((s) => ({
-      id: s.id,
-      title: s.title.replace(/ Treks$/, ''),
-      blurb: s.intro.slice(0, 72) + (s.intro.length > 72 ? '…' : ''),
-      cover:
-        s.id === 'himachal'
-          ? photos.himachal
-          : s.id === 'uttarakhand'
-            ? photos.uttarakhand
-            : photos.chopta,
-      tripCount: s.trips.length,
-    })),
+      'Three curated short group treks with confirmed dates, clear difficulty and Delhi-friendly logistics.',
+    cards: [
+      {
+        id: 'featured-weekends',
+        title: 'Weekend Treks',
+        blurb: 'Auli–Chopta, Tungnath–Chandrashila and Nag Tibba for a long weekend.',
+        cover: photos.chopta,
+        tripCount: all.length,
+      },
+    ],
   },
   whySection: {
     kicker: 'Why weekend with us',
@@ -147,7 +96,7 @@ export const weekendTripsLandingConfig: TrendingLandingConfig = {
     intro:
       'Weekend trips are paced for first-timers and busy travellers — short days, experienced leaders and smooth pickups.',
     points: [
-      '2–3 day itineraries that fit a long weekend',
+      '2–4 day itineraries that fit a long weekend',
       'Easy and easy-to-moderate graded trails',
       'Fixed group departures with experienced leaders',
       'Clear inclusions, packing lists and briefings',
@@ -159,7 +108,7 @@ export const weekendTripsLandingConfig: TrendingLandingConfig = {
   reviews: {
     kicker: 'Traveller reviews',
     title: 'Weekend stories from the trail',
-    intro: 'Feedback from short batches on Triund, Nag Tibba, Kheerganga and Chopta.',
+    intro: 'Feedback from short batches on Nag Tibba, Chopta and Auli–Chopta weekends.',
     items: weekendTripsReviews,
   },
   articles: {
@@ -170,32 +119,32 @@ export const weekendTripsLandingConfig: TrendingLandingConfig = {
   discovery: {
     id: 'find-my-trip',
     title: 'Which Weekend Fits You?',
-    intro: 'Tell us your preferred region or vibe — we’ll suggest the right short trek.',
+    intro: 'Tell us your preferred vibe — we’ll suggest the right short trek.',
     whatsappPrefix: 'Hi Indian Treks! I’m looking for a weekend trip and',
     options: [
       {
-        id: 'himachal',
-        label: 'I want Himachal this weekend',
-        targetSectionId: himachalSection.trips.length ? 'himachal' : tripSections[0].id,
-        whatsappHint: 'want a Himachal weekend trek',
+        id: 'auli-chopta',
+        label: 'Auli + Chopta / Chandrashila',
+        targetSectionId: 'featured-weekends',
+        whatsappHint: 'want the Auli Chopta Tungnath Chandrashila weekend trek',
       },
       {
-        id: 'uttarakhand',
-        label: 'I prefer Uttarakhand',
-        targetSectionId: uttarakhandSection.trips.length ? 'uttarakhand' : tripSections[0].id,
-        whatsappHint: 'want an Uttarakhand weekend trek',
+        id: 'chopta',
+        label: 'Classic Chopta Tungnath',
+        targetSectionId: 'featured-weekends',
+        whatsappHint: 'want the Chopta Tungnath Chandrashila weekend trek',
+      },
+      {
+        id: 'nag-tibba',
+        label: 'Short Nag Tibba weekend',
+        targetSectionId: 'featured-weekends',
+        whatsappHint: 'want the Nag Tibba weekend trek',
       },
       {
         id: 'first',
         label: 'This is my first trek',
-        targetSectionId: tripSections[0].id,
+        targetSectionId: 'featured-weekends',
         whatsappHint: 'want a beginner-friendly weekend trek',
-      },
-      {
-        id: 'friends',
-        label: 'Trip with friends / office',
-        targetSectionId: tripSections[0].id,
-        whatsappHint: 'want a weekend trek for friends or office group',
       },
     ],
   },

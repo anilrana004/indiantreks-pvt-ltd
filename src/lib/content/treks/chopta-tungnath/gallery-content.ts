@@ -1,4 +1,4 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Chopta Tungnath / Chandrashila trek photos — Cloudinary uploads (jum1mpl0).
@@ -47,8 +47,14 @@ export const CHOPTA_TUNGNATH_GALLERY: readonly string[] = uniqueGalleryUrls(
 /** Primary hero. */
 export const CHOPTA_TUNGNATH_HERO = CHOPTA_TUNGNATH_GALLERY[0]!;
 
-/** Listing / home card. */
-export const CHOPTA_TUNGNATH_CARD = CHOPTA_TUNGNATH_GALLERY[1] ?? CHOPTA_TUNGNATH_HERO;
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “CHOPTA Tungnath Chandrashila” title baked into the photo.
+ */
+export const CHOPTA_TUNGNATH_CARD = cloudinaryAssetUrl(
+  'v1791135730/Chopta_Tungnath_Chandrashila_Sunrise.png',
+  { w: 800, crop: 'scale' },
+);
 
 /** Media / homepage alias. */
 export const CHOPTA_HERO = CHOPTA_TUNGNATH_HERO;

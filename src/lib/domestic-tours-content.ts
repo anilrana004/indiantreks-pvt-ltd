@@ -141,7 +141,7 @@ export const domesticPackages: DomesticPackage[] = [
   {
     id: 'chopta-tungnath',
     destinationId: 'uttarakhand',
-    title: 'Chopta Tungnath Trek',
+    title: 'Chopta Tungnath Chandrashila Trek',
     subtitle: 'Meadows & the highest Shiva temple',
     duration: '2N/3D',
     price: 5499,

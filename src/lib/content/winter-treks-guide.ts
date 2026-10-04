@@ -6,19 +6,19 @@
 export const WINTER_TREKS_SEO = {
   title: 'Best Winter Treks in India 2026–27 | Snow Trekking Guide – IndianTreks',
   description:
-    'Explore the best winter treks in India for 2026–27. Discover Kedarkantha, Brahmatal, Kuari Pass, Dayara Bugyal, Mukta Top and more with IndianTreks.',
+    'Explore the best winter treks in India for 2026–27. Discover Kedarkantha, Chopta Tungnath Chandrashila, Kuari Pass, Pangarchulla, Nag Tibba, Dayara Bugyal and Brahmatal with IndianTreks.',
   primaryKeyword: 'Best Winter Treks in India',
 } as const;
 
 /** Editorial winter shortlist shown on curated + season=winter filter. */
 export const WINTER_TOP_TREK_IDS = [
   'kedarkantha',
-  'brahmatal',
+  'chopta-tungnath',
   'kuari-pass',
-  'dayara-bugyal',
-  'ali-bedni-bugyal',
+  'pangarchulla',
   'nag-tibba',
-  'har-ki-dun',
+  'dayara-bugyal',
+  'brahmatal',
 ] as const;
 
 export type WinterFilterTrek = {
@@ -30,12 +30,12 @@ export type WinterFilterTrek = {
 /** Chips in the trek filter sidebar — Best Winter Treks 2026–27. */
 export const WINTER_FILTER_TREKS: WinterFilterTrek[] = [
   { id: 'kedarkantha', label: 'Kedarkantha', href: '/treks/kedarkantha' },
-  { id: 'brahmatal', label: 'Brahmatal', href: '/treks/brahmatal' },
+  { id: 'chopta-tungnath', label: 'Chopta Tungnath Chandrashila', href: '/treks/chopta-tungnath' },
   { id: 'kuari-pass', label: 'Kuari Pass', href: '/treks/kuari-pass' },
-  { id: 'dayara-bugyal', label: 'Dayara Bugyal', href: '/treks/dayara-bugyal' },
-  { id: 'ali-bedni-bugyal', label: 'Ali Bedni Bugyal', href: '/treks/ali-bedni-bugyal' },
+  { id: 'pangarchulla', label: 'Pangarchulla Peak', href: '/treks/pangarchulla' },
   { id: 'nag-tibba', label: 'Nag Tibba', href: '/treks/nag-tibba' },
-  { id: 'har-ki-dun', label: 'Har Ki Dun', href: '/treks/har-ki-dun' },
+  { id: 'dayara-bugyal', label: 'Dayara Bugyal', href: '/treks/dayara-bugyal' },
+  { id: 'brahmatal', label: 'Brahmatal', href: '/treks/brahmatal' },
 ];
 
 /** Rich intro shown in the winter curated header (same green box as other trek sections). */
@@ -44,7 +44,7 @@ export const WINTER_SECTION_INTRO = {
   paragraphs: [
     'Winter transforms the Himalayas into a completely different world. Pine forests turn quieter, high-altitude meadows disappear beneath layers of snow, frozen lakes reflect snow-covered peaks, and every trail becomes an adventure.',
     'For trekkers, winter is one of the most rewarding seasons to explore the Indian Himalayas — whether you are planning your first snow trek, a weekend escape, or a challenging high-altitude adventure.',
-    'From the legendary Kedarkantha Trek and scenic Brahmatal Trek to Kuari Pass, Dayara Bugyal, Ali Bedni Bugyal, Nag Tibba and Har Ki Dun, winter trekking offers experiences for every kind of mountain lover.',
+    'From the legendary Kedarkantha Trek and Chopta–Tungnath–Chandrashila to Kuari Pass, Pangarchulla Peak, Nag Tibba, Dayara Bugyal and Brahmatal, winter trekking offers experiences for every kind of mountain lover.',
     'At IndianTreks, we believe the mountains are not just destinations. They are places where you challenge yourself, slow down, connect with nature, and return with stories worth remembering.',
   ],
   whyTitle: 'Why go for a winter trek?',
@@ -124,21 +124,20 @@ export const WINTER_TREK_PROFILES: WinterTrekProfile[] = [
     whyChoose: 'If this is your first Himalayan winter trek, Kedarkantha is one of the best places to begin.',
   },
   {
-    id: 'brahmatal',
-    eyebrow: 'Frozen lake & views',
-    headline: 'Brahmatal Trek — Frozen Lake & Himalayan Views',
+    id: 'chopta-tungnath',
+    eyebrow: 'Temple & summit',
+    headline: 'Chopta Tungnath Chandrashila Trek — Highest Shiva Temple & Summit Views',
     summary:
-      'Snow-covered forests, alpine landscapes and a high-altitude lake. Dense forests and open ridges lead to Brahmatal and Brahmatal Pass, with views of Trishul and Nanda Ghunti on clear days.',
+      'A short Garhwal classic: rhododendron and oak forests to Tungnath — the world’s highest Shiva temple — then a push to Chandrashila for a wide Himalayan sunrise. Ideal when you want winter scenery without a long expedition.',
     facts: [
-      { label: 'Location', value: 'Chamoli, Uttarakhand' },
-      { label: 'Altitude', value: 'Approx. 12,200 ft' },
-      { label: 'Duration', value: '6 Days / 5 Nights' },
-      { label: 'Difficulty', value: 'Moderate' },
+      { label: 'Location', value: 'Chopta, Uttarakhand' },
+      { label: 'Altitude', value: 'Approx. 13,550 ft (Chandrashila)' },
+      { label: 'Duration', value: '3 Days / 2 Nights' },
+      { label: 'Difficulty', value: 'Easy to Moderate' },
       { label: 'Best Season', value: 'December to March' },
-      { label: 'Ideal For', value: 'Snow lovers, beginners with fitness & experienced trekkers' },
+      { label: 'Ideal For', value: 'Weekend travellers, beginners & spiritual trekkers' },
     ],
-    whyChoose:
-      'For a classic Himalayan winter experience with beautiful mountain views and snow-covered trails.',
+    whyChoose: 'Temple trail plus a true summit viewpoint in a compact winter itinerary.',
   },
   {
     id: 'kuari-pass',
@@ -158,35 +157,20 @@ export const WINTER_TREK_PROFILES: WinterTrekProfile[] = [
     whyChoose: 'Choose this trek if panoramic Himalayan views are high on your list.',
   },
   {
-    id: 'dayara-bugyal',
-    eyebrow: 'Snow meadows',
-    headline: 'Dayara Bugyal Trek — Snow-Covered Alpine Meadows',
+    id: 'pangarchulla',
+    eyebrow: 'Peak climb',
+    headline: 'Pangarchulla Peak Trek — Summit Above the Kuari Trail',
     summary:
-      'Expansive alpine meadows that turn into vast snowfields in winter — one of Uttarakhand’s most beautiful winter landscapes, with forests and open meadow sections to enjoy at an approachable pace.',
-    facts: [
-      { label: 'Location', value: 'Uttarkashi, Uttarakhand' },
-      { label: 'Altitude', value: 'Approx. 12,000 ft' },
-      { label: 'Duration', value: '4–5 Days' },
-      { label: 'Difficulty', value: 'Easy to Moderate' },
-      { label: 'Best Season', value: 'December to March' },
-      { label: 'Ideal For', value: 'Beginners, families, groups & snow lovers' },
-    ],
-    whyChoose: 'Beautiful snowy landscapes without an extremely demanding trek.',
-  },
-  {
-    id: 'ali-bedni-bugyal',
-    eyebrow: 'Meadows in winter',
-    headline: 'Ali Bedni Bugyal Trek — Himalayan Meadows in Winter',
-    summary:
-      'One of Uttarakhand’s most spectacular high-altitude meadow regions. In winter, snow covers the open terrain — ideal for photographers and travellers who want wide landscapes, peaceful camps and quieter trails.',
+      'A rewarding Garhwal peak day from the Kuari Pass approach — steep but non-technical near the top, with close views of Nanda Devi, Dronagiri and Hathi–Ghoda from Pangarchulla summit.',
     facts: [
       { label: 'Location', value: 'Chamoli, Uttarakhand' },
-      { label: 'Altitude', value: 'Approx. 11,500 ft' },
-      { label: 'Duration', value: '5–6 Days' },
+      { label: 'Altitude', value: 'Approx. 15,069 ft' },
+      { label: 'Duration', value: '6 Days / 5 Nights' },
       { label: 'Difficulty', value: 'Moderate' },
-      { label: 'Best Season', value: 'Winter months (trail & weather dependent)' },
-      { label: 'Ideal For', value: 'Mountain lovers, photographers & experienced beginners' },
+      { label: 'Best Season', value: 'Dec–Apr & May–Jun / Sep–Oct windows' },
+      { label: 'Ideal For', value: 'Fit trekkers wanting a true peak after easier routes' },
     ],
+    whyChoose: 'For trekkers ready to step up from a pass trek to a Himalayan summit.',
   },
   {
     id: 'nag-tibba',
@@ -205,18 +189,37 @@ export const WINTER_TREK_PROFILES: WinterTrekProfile[] = [
     whyChoose: 'A quick Himalayan escape without a long leave from work or college.',
   },
   {
-    id: 'har-ki-dun',
-    eyebrow: 'Valley & villages',
-    headline: 'Har Ki Dun Trek — Valley, Villages & Winter Landscapes',
+    id: 'dayara-bugyal',
+    eyebrow: 'Snow meadows',
+    headline: 'Dayara Bugyal Trek — Snow-Covered Alpine Meadows',
     summary:
-      'A different Himalayan winter — traditional villages, forests, rivers and valleys deep in the Govind National Park region. Snow can transform the valley into a quieter, more dramatic landscape.',
+      'Expansive alpine meadows that turn into vast snowfields in winter — one of Uttarakhand’s most beautiful winter landscapes, with forests and open meadow sections to enjoy at an approachable pace.',
     facts: [
       { label: 'Location', value: 'Uttarkashi, Uttarakhand' },
-      { label: 'Altitude', value: 'Approx. 11,700 ft' },
-      { label: 'Duration', value: '7–8 Days' },
-      { label: 'Difficulty', value: 'Moderate' },
-      { label: 'Ideal For', value: 'Experienced beginners, nature lovers & cultural explorers' },
+      { label: 'Altitude', value: 'Approx. 12,000 ft' },
+      { label: 'Duration', value: '4–5 Days' },
+      { label: 'Difficulty', value: 'Easy to Moderate' },
+      { label: 'Best Season', value: 'December to March' },
+      { label: 'Ideal For', value: 'Beginners, families, groups & snow lovers' },
     ],
+    whyChoose: 'Beautiful snowy landscapes without an extremely demanding trek.',
+  },
+  {
+    id: 'brahmatal',
+    eyebrow: 'Frozen lake & views',
+    headline: 'Brahmatal Trek — Frozen Lake & Himalayan Views',
+    summary:
+      'Snow-covered forests, alpine landscapes and a high-altitude lake. Dense forests and open ridges lead to Brahmatal and Brahmatal Pass, with views of Trishul and Nanda Ghunti on clear days.',
+    facts: [
+      { label: 'Location', value: 'Chamoli, Uttarakhand' },
+      { label: 'Altitude', value: 'Approx. 12,200 ft' },
+      { label: 'Duration', value: '6 Days / 5 Nights' },
+      { label: 'Difficulty', value: 'Moderate' },
+      { label: 'Best Season', value: 'December to March' },
+      { label: 'Ideal For', value: 'Snow lovers, beginners with fitness & experienced trekkers' },
+    ],
+    whyChoose:
+      'For a classic Himalayan winter experience with beautiful mountain views and snow-covered trails.',
   },
 ];
 
@@ -257,12 +260,12 @@ export const WINTER_GUIDE_SECTIONS: WinterGuideSection[] = [
         headers: ['Trek', 'Difficulty', 'Best For'],
         rows: [
           ['Kedarkantha', 'Easy–Moderate', 'First-time snow trekkers'],
+          ['Chopta Tungnath Chandrashila', 'Easy–Moderate', 'Temple trail & weekend summit'],
           ['Nag Tibba', 'Easy–Moderate', 'Weekend & beginner trips'],
           ['Dayara Bugyal', 'Easy–Moderate', 'Beginners & families'],
           ['Brahmatal', 'Moderate', 'Snow & mountain views'],
           ['Kuari Pass', 'Moderate', 'Himalayan panoramas'],
-          ['Ali Bedni Bugyal', 'Moderate', 'Meadows & photography'],
-          ['Har Ki Dun', 'Moderate', 'Villages, valleys & nature'],
+          ['Pangarchulla Peak', 'Moderate', 'Peak climb & big views'],
         ],
       },
     ],

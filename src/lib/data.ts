@@ -47,6 +47,10 @@ import {
   CHOPTA_TUNGNATH_GALLERY,
   CHOPTA_TUNGNATH_HERO,
 } from "@/lib/content/treks/chopta-tungnath/gallery-content";
+import { VALLEY_OF_FLOWERS_CARD } from "@/lib/content/treks/valley-of-flowers/gallery-content";
+import { HAMPTA_PASS_CARD } from "@/lib/content/treks/hampta-pass/gallery-content";
+import { MCLEODGANJ_TREK_CARD } from "@/lib/content/treks/mcleodganj-trek/gallery-content";
+import { HAR_KI_DUN_CARD } from "@/lib/content/treks/har-ki-dun/gallery-content";
 import type { ItineraryDay } from "@/lib/content/treks/types";
 import { photos } from "@/lib/media";
 import { EXTRA_SITE_PACKAGES, applyLiveSitePricing } from "@/lib/site-packages";
@@ -154,6 +158,7 @@ const baseTreks: Trek[] = [
     rating: "4.8",
     reviewCount: "8k+",
     images: [photos.vof, photos.vof, photos.vof],
+    cardImage: VALLEY_OF_FLOWERS_CARD,
     brief: "The Valley of Flowers is a UNESCO World Heritage Site located in the Western Himalayas of Uttarakhand.",
     description: "The Valley of Flowers Trek is one of the most beautiful treks in India, renowned for its meadows of endemic alpine flowers and the variety of flora.",
     highlights: [
@@ -280,6 +285,7 @@ const baseTreks: Trek[] = [
       "https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
       "https://images.unsplash.com/photo-1486870591958-9b9d0d1dda99?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
     ],
+    cardImage: HAMPTA_PASS_CARD,
     brief: "Hampta Pass is a classic Himalayan trek that crosses from the lush green Kullu valley to the barren, cold desert of Lahaul and Spiti.",
     description: "Hampta Pass Trek is one of the most diverse treks in Himachal Pradesh.",
     highlights: [
@@ -517,6 +523,7 @@ const baseTreks: Trek[] = [
       "https://images.unsplash.com/photo-1454496522488-7a8e488e8606?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
       "https://images.unsplash.com/photo-1454496522488-7a8e488e8606?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
     ],
+    cardImage: MCLEODGANJ_TREK_CARD,
     brief: "A perfect weekend escape to the Dhauladhar ranges.",
     description: "Triund is one of the most popular short treks in Himachal Pradesh.",
     highlights: [
@@ -551,7 +558,7 @@ const baseTreks: Trek[] = [
   },
   {
     id: "chopta-tungnath",
-    title: "Chopta Tungnath Trek",
+    title: "Chopta Tungnath Chandrashila Trek",
     subtitle: "The Mini Switzerland of India",
     location: "Rishikesh to Rishikesh",
     state: "Uttarakhand",
@@ -726,6 +733,7 @@ const baseTreks: Trek[] = [
       "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
       "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800&q=80",
     ],
+    cardImage: HAR_KI_DUN_CARD,
     brief:
       "Walk into the legendary Valley of Gods — a Garhwal valley trek from Sankri through forests, villages and the Supin River to Har Ki Dun at 12,100 ft.",
     description:

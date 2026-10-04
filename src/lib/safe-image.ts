@@ -16,6 +16,7 @@ const byId: Record<string, string> = {
   'everest-base-camp': photos.ebc,
   'mcleodganj-trek': photos.triund,
   'chopta-tungnath': photos.chopta,
+  'auli-chopta-tungnath': photos.chopta,
   'badrinath-yatra': photos.yatra,
   'dayara-bugyal': photos.dayara,
   'har-ki-dun': photos.uttarakhand,

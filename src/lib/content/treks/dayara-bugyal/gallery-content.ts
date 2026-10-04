@@ -1,4 +1,4 @@
-import { ensureCldAuto } from '@/lib/cloudinary';
+import { cloudinaryAssetUrl, ensureCldAuto } from '@/lib/cloudinary';
 
 /**
  * Dayara Bugyal trek photos — Cloudinary uploads (jum1mpl0).
@@ -35,8 +35,14 @@ export const DAYARA_BUGYAL_GALLERY: readonly string[] = uniqueGalleryUrls(DAYARA
 /** Primary hero — winter ridge ascent. */
 export const DAYARA_BUGYAL_HERO = DAYARA_BUGYAL_GALLERY[0]!;
 
-/** Listing / home card — snowshoe / meadow scene. */
-export const DAYARA_BUGYAL_CARD = DAYARA_BUGYAL_GALLERY[1] ?? DAYARA_BUGYAL_HERO;
+/**
+ * Listing / home trek-card cover only — not used on the trek detail gallery.
+ * Portrait creative with “DAYARA Bugyal” title baked into the photo.
+ */
+export const DAYARA_BUGYAL_CARD = cloudinaryAssetUrl(
+  'v1791136043/DAYARA_Bugyal_Alpine_Adventure.png',
+  { w: 800, crop: 'scale' },
+);
 
 /** Homepage / media hero alias. */
 export const DAYARA_HERO = DAYARA_BUGYAL_HERO;
