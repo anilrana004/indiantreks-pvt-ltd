@@ -52,9 +52,12 @@ function SlideImage({
   priority?: boolean;
 }) {
   const desk = desktopSrc || src;
-  /** Slight zoom gives object-position room to nudge framing on exact-ratio art. */
+  /**
+   * Exact-ratio art needs a tiny zoom before object-position can shift framing.
+   * Keep zoom minimal so “little upward” stays subtle and sharp.
+   */
   const positionStyle = objectPosition
-    ? { objectPosition, transform: 'scale(1.06)' }
+    ? { objectPosition, transform: 'scale(1.03)' }
     : undefined;
   const sizes = '(max-width: 1024px) 100vw, min(1200px, 100vw)';
 
@@ -65,7 +68,8 @@ function SlideImage({
         alt={alt}
         fill
         sizes={sizes}
-        priority={priority}
+        /** Explore LCP is desktop-only — don’t double-fetch a priority mobile asset. */
+        priority={false}
         placeholder="blur"
         blurDataURL={STOREFRONT_BLUR_DATA_URL}
         referrerPolicy="no-referrer"

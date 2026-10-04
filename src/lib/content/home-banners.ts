@@ -84,6 +84,8 @@ export const HOME_BANNERS: Record<HomeBannerGroup, BannerItem[]> = {
       href: '/yatra',
       title: 'Char Dham Yatra — Sacred Himalayan Journey',
       designed: true,
+      /** Tiny upward nudge so title / icon row clear the strip edge. */
+      objectPosition: 'center 45%',
     },
     {
       src: himachalAdventureBanner.mobile,
@@ -91,6 +93,8 @@ export const HOME_BANNERS: Record<HomeBannerGroup, BannerItem[]> = {
       href: '/treks?region=himachal',
       title: 'Himachal Pradesh — Adventure Capital',
       designed: true,
+      /** Tiny upward nudge so title / icon row clear the strip edge. */
+      objectPosition: 'center 45%',
     },
   ],
   book: [
