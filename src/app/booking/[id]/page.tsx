@@ -23,9 +23,15 @@ import {
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
 import { addOns } from '@/lib/trek-detail-content';
 import type { PublicUser } from '@/lib/user-auth/types';
-import { openRazorpayCheckout, preloadRazorpayCheckout } from '@/lib/payments/checkout-client';
+import {
+  ensureRazorpayReady,
+  openRazorpayCheckout,
+  preloadRazorpayCheckout,
+  type RazorpayCheckoutOrder,
+} from '@/lib/payments/checkout-client';
 import type { BookingPayment } from '@/lib/operations/types';
 import { safeReturnPath } from '@/lib/security/urls';
+import Script from 'next/script';
 
 type BookingParticipant = {
   id: string;
@@ -33,6 +39,13 @@ type BookingParticipant = {
   age: string;
   gender: string;
   phone: string;
+};
+
+type ReadyCheckout = {
+  fingerprint: string;
+  bookingId: string;
+  checkoutToken: string;
+  order: RazorpayCheckoutOrder;
 };
 
 function newParticipant(): BookingParticipant {
@@ -133,6 +146,9 @@ function BookingContent() {
   const [profileFilled, setProfileFilled] = useState(false);
   const [gearTick, setGearTick] = useState(0);
   const [livePricing, setLivePricing] = useState<PricingTier[] | null>(null);
+  const [readyCheckout, setReadyCheckout] = useState<ReadyCheckout | null>(null);
+  const [warmingPay, setWarmingPay] = useState(false);
+  const warmGen = useRef(0);
 
   useEffect(() => {
     if (!trek) return;
@@ -244,7 +260,12 @@ function BookingContent() {
     };
   }, []);
 
-  // Warm login chunk for guests; warm Razorpay SDK for signed-in payers.
+  // Warm Razorpay SDK as soon as booking page mounts (before Pay Now).
+  useEffect(() => {
+    preloadRazorpayCheckout();
+  }, []);
+
+  // Warm login chunk for guests; keep Razorpay warm for signed-in payers.
   useEffect(() => {
     if (authStatus === 'guest') {
       try {
@@ -259,21 +280,6 @@ function BookingContent() {
     }
   }, [authStatus, router]);
 
-  useEffect(() => {
-    if (step === 3 && authStatus === 'signed_in') {
-      preloadRazorpayCheckout();
-    }
-  }, [step, authStatus]);
-
-  const redirectToLogin = () => {
-    if (!trek || loginRedirectStarted.current) return;
-    loginRedirectStarted.current = true;
-    setOpeningLogin(true);
-    saveBookingDraft(trek.id, { form, participants, step: 3 });
-    const from = `${window.location.pathname}${window.location.search || ''}`;
-    // Hard navigation is faster than soft router.push for auth handoff.
-    window.location.assign(`/login?from=${encodeURIComponent(from)}`);
-  };
   const gearLines = useMemo(
     () => (trek ? cartForTrek(trek.id) : []),
     [trek, gearTick],
@@ -293,6 +299,157 @@ function BookingContent() {
   const pkgLabel = trek
     ? bookingSharingLabel(pricingTiers.length ? pricingTiers : trek.pricing, pkgKey)
     : form.pkg;
+
+  /**
+   * Pre-create booking + Razorpay order on Confirm step so Pay Now only opens the modal.
+   * Fingerprint invalidates the warm session if the user changes pay-critical fields.
+   */
+  useEffect(() => {
+    if (!trek || step !== 3 || authStatus !== 'signed_in') return;
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) return;
+
+    const persons = Math.max(1, parseInt(form.persons, 10) || 1);
+    const pickupFeePerPerson = Math.max(0, parseInt(sp.get('pickupFee') || '0', 10) || 0);
+    const addonIds = (sp.get('addons') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const lines = gearLines;
+    const named = participants.filter((p) => p.name.trim());
+    const fingerprint = [
+      trek.id,
+      form.date,
+      pkgKey,
+      String(persons),
+      form.payment,
+      form.email.trim().toLowerCase(),
+      form.phone.trim(),
+      form.name.trim(),
+      form.city.trim(),
+      form.pickup,
+      addonIds.join(','),
+      String(pickupFeePerPerson),
+      lines.map((g) => `${g.gearId}:${g.qty}`).join(','),
+      named.map((p) => `${p.name}:${p.age}:${p.gender}`).join('|'),
+      sp.get('batchId') || '',
+    ].join('::');
+
+    if (readyCheckout?.fingerprint === fingerprint) return;
+
+    const gen = ++warmGen.current;
+    setWarmingPay(true);
+    setReadyCheckout(null);
+    preloadRazorpayCheckout();
+
+    const idempotencyKey = `pay:${fingerprint}`;
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        await ensureRazorpayReady();
+        const payRes = await fetch('/api/bookings/pay', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+          },
+          credentials: 'include',
+          signal: controller.signal,
+          body: JSON.stringify({
+            trekId: trek.id,
+            packageName: pkgKey,
+            persons,
+            paymentMode: form.payment as BookingPayment,
+            addonIds,
+            pickupFeePerPerson,
+            gearLines: lines.map((g) => ({ gearId: g.gearId, qty: g.qty })),
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            city: form.city,
+            date: form.date,
+            batchId: sp.get('batchId') || undefined,
+            notes: form.notes,
+            pickup: form.pickup,
+            participants: named.map(({ name, age, gender, phone }) => ({
+              name,
+              age,
+              gender,
+              phone,
+            })),
+          }),
+        });
+        if (gen !== warmGen.current) return;
+        const payBody = await payRes.json();
+        if (payRes.status === 401 || payBody.code === 'AUTH_REQUIRED') {
+          setAuthStatus('guest');
+          setWarmingPay(false);
+          return;
+        }
+        if (!payRes.ok) {
+          setWarmingPay(false);
+          return;
+        }
+        const { bookingId, checkoutToken, ...order } = payBody as ReadyCheckout['order'] & {
+          bookingId: string;
+          checkoutToken: string;
+        };
+        if (!bookingId || !checkoutToken || !order.razorpayOrderId) {
+          setWarmingPay(false);
+          return;
+        }
+        try {
+          sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
+        } catch {
+          /* ignore */
+        }
+        setReadyCheckout({
+          fingerprint,
+          bookingId,
+          checkoutToken,
+          order: order as RazorpayCheckoutOrder,
+        });
+      } catch {
+        /* warm best-effort — Pay Now falls back to live create */
+      } finally {
+        if (gen === warmGen.current) setWarmingPay(false);
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    trek,
+    step,
+    authStatus,
+    form.name,
+    form.email,
+    form.phone,
+    form.date,
+    form.persons,
+    form.payment,
+    form.city,
+    form.pickup,
+    form.notes,
+    pkgKey,
+    participants,
+    gearLines,
+    sp.get('pickupFee'),
+    sp.get('addons'),
+    sp.get('batchId'),
+    readyCheckout?.fingerprint,
+  ]);
+
+  const redirectToLogin = () => {
+    if (!trek || loginRedirectStarted.current) return;
+    loginRedirectStarted.current = true;
+    setOpeningLogin(true);
+    saveBookingDraft(trek.id, { form, participants, step: 3 });
+    const from = `${window.location.pathname}${window.location.search || ''}`;
+    // Hard navigation is faster than soft router.push for auth handoff.
+    window.location.assign(`/login?from=${encodeURIComponent(from)}`);
+  };
 
   if (!trek) return (
     <div className="pt-28 min-h-screen flex items-center justify-center">
@@ -346,6 +503,57 @@ function BookingContent() {
     setParticipants((list) => list.filter((p) => p.id !== id));
   };
 
+  const launchCheckout = async (
+    bookingId: string,
+    checkoutToken: string,
+    order: RazorpayCheckoutOrder,
+  ) => {
+    clearBookingDraft(trek.id);
+    try {
+      sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
+    } catch {
+      /* ignore */
+    }
+
+    await ensureRazorpayReady();
+    await openRazorpayCheckout(order, {
+      onSuccess: async (response) => {
+        try {
+          const verifyRes = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              bookingId,
+              checkoutToken,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }),
+          });
+          const verifyBody = await verifyRes.json();
+          if (!verifyRes.ok) {
+            throw new Error(verifyBody.error || 'Payment verification failed');
+          }
+          router.push(
+            `/booking/success?bookingId=${encodeURIComponent(bookingId)}`,
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Verification failed';
+          router.push(
+            `/booking/payment-failed?bookingId=${encodeURIComponent(bookingId)}&reason=${encodeURIComponent(message)}`,
+          );
+        } finally {
+          setPaying(false);
+        }
+      },
+      onDismiss: () => {
+        setPaying(false);
+        setPayError('Payment window closed. You can try again when ready.');
+      },
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step < 3) {
@@ -390,12 +598,22 @@ function BookingContent() {
     setPaying(true);
 
     try {
-      // One round-trip: create booking + Razorpay order (script already preloaded).
+      // Instant path: order was pre-warmed on Confirm step.
+      if (readyCheckout) {
+        await launchCheckout(
+          readyCheckout.bookingId,
+          readyCheckout.checkoutToken,
+          readyCheckout.order,
+        );
+        return;
+      }
+
+      // Fallback: create booking + order live (still one round-trip).
       const payRes = await fetch('/api/bookings/pay', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Idempotency-Key': `pay:${trek.id}:${form.date}:${personCount}:${Date.now()}`,
+          'Idempotency-Key': `pay:${trek.id}:${form.date}:${personCount}:${form.payment}:${pkgKey}:${form.email}`,
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -436,62 +654,9 @@ function BookingContent() {
       const { bookingId, checkoutToken, ...order } = payBody as {
         bookingId: string;
         checkoutToken: string;
-        keyId: string;
-        razorpayOrderId: string;
-        amount: number;
-        currency: string;
-        name: string;
-        description: string;
-        prefill: { name: string; email: string; contact: string };
-        theme: { color: string };
-        image?: string;
-        notes?: Record<string, string>;
-      };
+      } & RazorpayCheckoutOrder;
 
-      clearBookingDraft(trek.id);
-
-      try {
-        sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
-      } catch {
-        /* ignore */
-      }
-
-      await openRazorpayCheckout(order, {
-        onSuccess: async (response) => {
-          try {
-            const verifyRes = await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                bookingId,
-                checkoutToken,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-            const verifyBody = await verifyRes.json();
-            if (!verifyRes.ok) {
-              throw new Error(verifyBody.error || 'Payment verification failed');
-            }
-            router.push(
-              `/booking/success?bookingId=${encodeURIComponent(bookingId)}`,
-            );
-          } catch (err) {
-            const message = err instanceof Error ? err.message : 'Verification failed';
-            router.push(
-              `/booking/payment-failed?bookingId=${encodeURIComponent(bookingId)}&reason=${encodeURIComponent(message)}`,
-            );
-          } finally {
-            setPaying(false);
-          }
-        },
-        onDismiss: () => {
-          setPaying(false);
-          setPayError('Payment window closed. You can try again when ready.');
-        },
-      });
+      await launchCheckout(bookingId, checkoutToken, order);
     } catch (err) {
       setPaying(false);
       setPayError(err instanceof Error ? err.message : 'Payment could not be started');
@@ -500,6 +665,15 @@ function BookingContent() {
 
   return (
     <div className="pt-20 lg:pt-24 pb-12 lg:pb-20 bg-gray-50 min-h-screen">
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="afterInteractive"
+        data-razorpay-checkout="1"
+        onLoad={(e) => {
+          const el = e.currentTarget as HTMLScriptElement;
+          el.dataset.ready = '1';
+        }}
+      />
       <div className="container mx-auto max-w-5xl">
         <div className="mb-6 lg:mb-8">
           <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#16a34a] transition-colors mb-4">
@@ -858,6 +1032,10 @@ function BookingContent() {
                 ) : step === 3 && openingLogin ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" /> Opening login…
+                  </>
+                ) : step === 3 && warmingPay && !readyCheckout ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Preparing payment…
                   </>
                 ) : (
                   <>

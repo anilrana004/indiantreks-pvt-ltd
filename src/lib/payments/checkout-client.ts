@@ -28,34 +28,59 @@ declare global {
   }
 }
 
+const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+
+let razorpayLoadPromise: Promise<void> | null = null;
+
 function loadRazorpayScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      reject(new Error('Razorpay requires a browser'));
-      return;
-    }
-    if (window.Razorpay) {
-      resolve();
-      return;
-    }
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Razorpay requires a browser'));
+  }
+  if (window.Razorpay) return Promise.resolve();
+  if (razorpayLoadPromise) return razorpayLoadPromise;
+
+  razorpayLoadPromise = new Promise<void>((resolve, reject) => {
+    const finish = () => {
+      if (window.Razorpay) {
+        resolve();
+        return;
+      }
+      reject(new Error('Razorpay SDK unavailable'));
+    };
+
     const existing = document.querySelector<HTMLScriptElement>('script[data-razorpay-checkout]');
     if (existing) {
       if (window.Razorpay) {
         resolve();
         return;
       }
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay')));
+      existing.addEventListener('load', finish, { once: true });
+      existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay')), {
+        once: true,
+      });
+      // Script may already be complete (e.g. Next <Script />).
+      if (existing.dataset.ready === '1' || existing.getAttribute('data-loaded') === 'true') {
+        queueMicrotask(finish);
+      }
       return;
     }
+
     const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.src = RAZORPAY_SRC;
     script.async = true;
     script.dataset.razorpayCheckout = '1';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Razorpay Checkout'));
-    document.body.appendChild(script);
+    script.onload = () => {
+      script.dataset.ready = '1';
+      finish();
+    };
+    script.onerror = () => {
+      razorpayLoadPromise = null;
+      reject(new Error('Failed to load Razorpay Checkout'));
+    };
+    document.head.appendChild(script);
   });
+
+  return razorpayLoadPromise;
 }
 
 /** Warm the Razorpay SDK before Pay Now so checkout opens without a script wait. */
@@ -64,6 +89,11 @@ export function preloadRazorpayCheckout(): void {
   void loadRazorpayScript().catch(() => {
     /* ignore warm failures — open path still loads */
   });
+}
+
+/** Awaitable warm — use before opening so Pay Now never waits on script I/O. */
+export function ensureRazorpayReady(): Promise<void> {
+  return loadRazorpayScript();
 }
 
 /**
@@ -115,5 +145,6 @@ export async function openRazorpayCheckout(
     },
   });
 
+  // Open immediately — script is pre-warmed on booking / confirm step.
   rzp.open();
 }
