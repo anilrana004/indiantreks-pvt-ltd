@@ -86,6 +86,18 @@ function loadRazorpayScript(): Promise<void> {
 /** Warm the Razorpay SDK before Pay Now so checkout opens without a script wait. */
 export function preloadRazorpayCheckout(): void {
   if (typeof window === 'undefined') return;
+  // Touch Razorpay origins early (desktop + mobile).
+  const ensureLink = (rel: string, href: string) => {
+    if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = rel;
+    link.href = href;
+    if (rel === 'preconnect') link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+  };
+  ensureLink('preconnect', 'https://checkout.razorpay.com');
+  ensureLink('preconnect', 'https://api.razorpay.com');
+  ensureLink('dns-prefetch', 'https://checkout.razorpay.com');
   void loadRazorpayScript().catch(() => {
     /* ignore warm failures — open path still loads */
   });

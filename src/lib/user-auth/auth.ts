@@ -37,6 +37,12 @@ export async function getCurrentUser(): Promise<PublicUser | null> {
   };
 }
 
+/** JWT-only identity — no DB round-trip. Use on hot pay path after cookie is already trusted. */
+export async function getSessionIdentity(): Promise<{ userId: string; email: string } | null> {
+  const cookieStore = await cookies();
+  return verifyUserSessionToken(cookieStore.get(USER_COOKIE)?.value);
+}
+
 export async function requireUser(): Promise<PublicUser | null> {
   return getCurrentUser();
 }

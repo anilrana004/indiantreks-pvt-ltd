@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { isRazorpayConfigured } from '@/lib/payments/razorpay';
-import {
-  createCheckoutBooking,
-  createRazorpayOrderForBooking,
-} from '@/lib/payments/service';
+import { createPayNowCheckout } from '@/lib/payments/service';
 import type { BookingPayment } from '@/lib/operations/types';
 import {
   CHECKOUT_LIMIT,
@@ -16,13 +13,14 @@ import {
   clientIp,
   rateLimitedResponse,
 } from '@/lib/security/rate-limit';
-import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
+import { getSessionIdentity, unauthorizedUserResponse } from '@/lib/user-auth/auth';
+import type { PublicUser } from '@/lib/user-auth/types';
 
 export const runtime = 'nodejs';
 
 /**
- * Single-round-trip Pay Now: create booking hold + Razorpay order.
- * Cuts one client↔server hop vs /checkout then /create-order.
+ * Single-round-trip Pay Now: inventory hold + booking + Razorpay order (parallelized).
+ * Used for Confirm-step warm and click fallback — same correctness guarantees.
  */
 export async function POST(req: NextRequest) {
   if (!isDbConfigured()) return dbUnavailableResponse();
@@ -33,17 +31,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // IP abuse check + session user lookup are independent — run together.
-  const [abuse, user] = await Promise.all([
+  // JWT peek (no DB) + IP abuse in parallel — hot path.
+  const [abuse, session] = await Promise.all([
     checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
-    getCurrentUser(),
+    getSessionIdentity(),
   ]);
   if (!abuse.allowed) {
     return rateLimitedResponse(abuse.retryAfterSec);
   }
-  if (!user) {
+  if (!session) {
     return unauthorizedUserResponse();
   }
+
+  const user = { id: session.userId, email: session.email } as PublicUser;
 
   const [checkoutLimited, orderLimited] = await Promise.all([
     checkUserRateLimit(CHECKOUT_LIMIT, user.id),
@@ -63,7 +63,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid payment mode' }, { status: 400 });
     }
 
-    const checkout = await createCheckoutBooking({
+    const idempotencyKey =
+      req.headers.get('idempotency-key')?.trim() ||
+      `pay:${String(body.trekId || '')}:${String(body.date || '')}:${String(body.email || '')}`;
+
+    const result = await createPayNowCheckout({
       trekId: String(body.trekId || ''),
       packageName: String(body.packageName || body.package || ''),
       persons: Number(body.persons || 1),
@@ -86,22 +90,14 @@ export async function POST(req: NextRequest) {
       pickup: String(body.pickup || ''),
       participants: Array.isArray(body.participants) ? body.participants : [],
       user,
+      idempotencyKey,
     });
 
-    const order = await createRazorpayOrderForBooking(
-      checkout.bookingId,
-      checkout.checkoutToken,
-      {
-        idempotencyKey:
-          req.headers.get('idempotency-key')?.trim() || `order:${checkout.bookingId}`,
-        user,
-        freshCheckout: true,
-      },
-    );
+    const { reused: _reused, checkoutToken, ...order } = result;
 
     return NextResponse.json(
       {
-        checkoutToken: checkout.checkoutToken,
+        checkoutToken,
         ...order,
       },
       { status: 201 },

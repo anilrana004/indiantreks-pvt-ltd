@@ -33,5 +33,12 @@ export default async function BookingPage({
     );
   }
 
-  return <BookingCheckoutClient trek={trek} />;
+  return (
+    <>
+      <link rel="preconnect" href="https://checkout.razorpay.com" crossOrigin="anonymous" />
+      <link rel="preconnect" href="https://api.razorpay.com" crossOrigin="anonymous" />
+      <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+      <BookingCheckoutClient trek={trek} />
+    </>
+  );
 }

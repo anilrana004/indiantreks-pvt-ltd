@@ -137,6 +137,22 @@ function BookingContent({ trek }: { trek: Trek }) {
   const [profileFilled, setProfileFilled] = useState(false);
   const [gearTick, setGearTick] = useState(0);
   const [livePricing, setLivePricing] = useState<PricingTier[] | null>(null);
+  const [readyCheckout, setReadyCheckout] = useState<{
+    fingerprint: string;
+    bookingId: string;
+    checkoutToken: string;
+    order: RazorpayCheckoutOrder;
+  } | null>(null);
+  const [warmingPay, setWarmingPay] = useState(false);
+  const readyCheckoutRef = useRef(readyCheckout);
+  readyCheckoutRef.current = readyCheckout;
+  const warmGen = useRef(0);
+  const warmPromiseRef = useRef<Promise<{
+    fingerprint: string;
+    bookingId: string;
+    checkoutToken: string;
+    order: RazorpayCheckoutOrder;
+  } | null> | null>(null);
 
   useEffect(() => {
     if (!trek) return;
@@ -248,7 +264,11 @@ function BookingContent({ trek }: { trek: Trek }) {
     };
   }, []);
 
-  // Prefetch login for guests. Warm Razorpay as soon as the user is on details/confirm.
+  // Prefetch login for guests. Preload Razorpay SDK on mount (TTH-style warm).
+  useEffect(() => {
+    preloadRazorpayCheckout();
+  }, []);
+
   useEffect(() => {
     if (authStatus === 'guest') {
       try {
@@ -257,13 +277,10 @@ function BookingContent({ trek }: { trek: Trek }) {
         /* ignore */
       }
     }
-  }, [authStatus, router]);
-
-  useEffect(() => {
-    if (step >= 2 && authStatus === 'signed_in') {
+    if (authStatus === 'signed_in') {
       preloadRazorpayCheckout();
     }
-  }, [step, authStatus]);
+  }, [authStatus, router]);
 
   const gearLines = useMemo(
     () => cartForTrek(trek.id),
@@ -314,6 +331,159 @@ function BookingContent({ trek }: { trek: Trek }) {
   const payableNow = form.payment === 'deposit' ? depositAmt : form.payment === 'full' ? total : Math.ceil(tripTotal / 2) + gearTotal;
   const expectedOthers = Math.max(0, personCount - 1);
   const namedParticipants = participants.filter((p) => p.name.trim());
+
+  const payFingerprint = useMemo(() => {
+    const addonIds = selectedAddonIds.join(',');
+    const gearKey = gearLines.map((g) => `${g.gearId}:${g.qty}`).join(',');
+    const namedKey = namedParticipants
+      .map((p) => `${p.name}:${p.age}:${p.gender}`)
+      .join('|');
+    return [
+      trek.id,
+      form.date,
+      pkgKey,
+      String(personCount),
+      form.payment,
+      form.email.trim().toLowerCase(),
+      form.phone.trim(),
+      form.name.trim(),
+      form.city.trim(),
+      form.pickup,
+      addonIds,
+      String(pickupFee),
+      gearKey,
+      namedKey,
+      sp.get('batchId') || '',
+    ].join('::');
+  }, [
+    trek.id,
+    form.date,
+    form.payment,
+    form.email,
+    form.phone,
+    form.name,
+    form.city,
+    form.pickup,
+    pkgKey,
+    personCount,
+    selectedAddonIds,
+    pickupFee,
+    gearLines,
+    namedParticipants,
+    sp,
+  ]);
+
+  /**
+   * Confirm-step warm (TTH-style): booking + Razorpay order ready before Pay click.
+   * Debounced; previous warm abandoned so inventory holds don't pile up.
+   */
+  useEffect(() => {
+    if (step !== 3 || authStatus !== 'signed_in') return;
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) return;
+
+    const fingerprint = payFingerprint;
+    if (readyCheckoutRef.current?.fingerprint === fingerprint) return;
+
+    const previous = readyCheckoutRef.current;
+    if (previous && previous.fingerprint !== fingerprint) {
+      void fetch('/api/bookings/abandon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          bookingId: previous.bookingId,
+          checkoutToken: previous.checkoutToken,
+        }),
+      }).catch(() => {
+        /* best-effort */
+      });
+      setReadyCheckout(null);
+    }
+
+    const gen = ++warmGen.current;
+    const controller = new AbortController();
+    setWarmingPay(true);
+    preloadRazorpayCheckout();
+
+    const run = async () => {
+      try {
+        await ensureRazorpayReady();
+        const payRes = await fetch('/api/bookings/pay', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `pay:${fingerprint}`,
+          },
+          credentials: 'include',
+          signal: controller.signal,
+          body: JSON.stringify({
+            trekId: trek.id,
+            packageName: pkgKey,
+            persons: personCount,
+            paymentMode: form.payment as BookingPayment,
+            addonIds: selectedAddonIds,
+            pickupFeePerPerson: pickupFee,
+            gearLines: gearLines.map((g) => ({ gearId: g.gearId, qty: g.qty })),
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            city: form.city,
+            date: form.date,
+            batchId: sp.get('batchId') || undefined,
+            notes: form.notes,
+            pickup: form.pickup,
+            participants: namedParticipants.map(({ name, age, gender, phone }) => ({
+              name,
+              age,
+              gender,
+              phone,
+            })),
+          }),
+        });
+        if (gen !== warmGen.current) return null;
+        const payBody = await payRes.json();
+        if (payRes.status === 401 || payBody.code === 'AUTH_REQUIRED') {
+          setAuthStatus('guest');
+          return null;
+        }
+        if (!payRes.ok) return null;
+        const { bookingId, checkoutToken, ...order } = payBody as {
+          bookingId: string;
+          checkoutToken: string;
+        } & RazorpayCheckoutOrder;
+        if (!bookingId || !checkoutToken || !order.razorpayOrderId) return null;
+        try {
+          sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
+        } catch {
+          /* ignore */
+        }
+        const ready = {
+          fingerprint,
+          bookingId,
+          checkoutToken,
+          order: order as RazorpayCheckoutOrder,
+        };
+        if (gen === warmGen.current) setReadyCheckout(ready);
+        return ready;
+      } catch {
+        return null;
+      } finally {
+        if (gen === warmGen.current) setWarmingPay(false);
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      const promise = run();
+      warmPromiseRef.current = promise;
+    }, 280);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+    // Fingerprint encodes all pay-critical fields — avoid re-warming on referential churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [step, authStatus, payFingerprint]);
 
   const steps = [
     { num: 1, label: 'Package & Date', icon: Calendar },
@@ -427,14 +597,31 @@ function BookingContent({ trek }: { trek: Trek }) {
     setPaying(true);
 
     try {
-      // Click-only: create booking + order while Razorpay SDK finishes loading (preloaded on step 3).
+      // Instant path: Confirm warm already created booking + Razorpay order.
+      let ready = readyCheckoutRef.current;
+      if (ready && ready.fingerprint === payFingerprint) {
+        await launchCheckout(ready.bookingId, ready.checkoutToken, ready.order);
+        return;
+      }
+
+      // Join in-flight warm if Pay is clicked mid-prepare.
+      if (warmPromiseRef.current) {
+        ready = await warmPromiseRef.current;
+        if (ready && ready.fingerprint === payFingerprint) {
+          setReadyCheckout(ready);
+          await launchCheckout(ready.bookingId, ready.checkoutToken, ready.order);
+          return;
+        }
+      }
+
+      // Fallback: create booking + order live (parallel SDK ready).
       const [, payRes] = await Promise.all([
         ensureRazorpayReady(),
         fetch('/api/bookings/pay', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Idempotency-Key': `pay:${trek.id}:${form.date}:${personCount}:${form.payment}:${pkgKey}:${form.email}`,
+            'Idempotency-Key': `pay:${payFingerprint}`,
           },
           credentials: 'include',
           body: JSON.stringify({
@@ -845,6 +1032,10 @@ function BookingContent({ trek }: { trek: Trek }) {
                 ) : step === 3 && openingLogin ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" /> Opening login…
+                  </>
+                ) : step === 3 && warmingPay && !readyCheckout ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Preparing payment…
                   </>
                 ) : (
                   <>
