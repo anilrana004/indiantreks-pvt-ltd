@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import AuthShell from '@/components/auth/AuthShell';
 import { USER_TOKEN_STORAGE_KEY } from '@/lib/user-auth/constants';
@@ -20,7 +19,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function LoginForm() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
