@@ -23,7 +23,7 @@ import {
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
 import { addOns } from '@/lib/trek-detail-content';
 import type { PublicUser } from '@/lib/user-auth/types';
-import { openRazorpayCheckout } from '@/lib/payments/checkout-client';
+import { openRazorpayCheckout, preloadRazorpayCheckout } from '@/lib/payments/checkout-client';
 import type { BookingPayment } from '@/lib/operations/types';
 import { safeReturnPath } from '@/lib/security/urls';
 
@@ -186,7 +186,31 @@ function BookingContent() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    // 1) Instant JWT peek (no DB) — unlocks Pay Now / Login CTA in milliseconds.
+    void (async () => {
+      try {
+        const peek = await fetch('/api/user/auth/session', {
+          credentials: 'include',
+          cache: 'default',
+        });
+        if (cancelled) return;
+        if (!peek.ok) {
+          setAuthStatus('guest');
+          setSignedInUser(null);
+          return;
+        }
+        setAuthStatus('signed_in');
+      } catch {
+        if (!cancelled) {
+          setAuthStatus('guest');
+          setSignedInUser(null);
+        }
+      }
+    })();
+
+    // 2) Full profile hydrate in the background (DB) — never blocks Pay Now.
+    void (async () => {
       try {
         const res = await fetch('/api/user/auth/me', { credentials: 'include', cache: 'no-store' });
         if (cancelled) return;
@@ -211,16 +235,35 @@ function BookingContent() {
         }));
         setProfileFilled(true);
       } catch {
-        if (!cancelled) {
-          setSignedInUser(null);
-          setAuthStatus('guest');
-        }
+        /* peek already set authStatus; leave as-is */
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Warm login chunk for guests; warm Razorpay SDK for signed-in payers.
+  useEffect(() => {
+    if (authStatus === 'guest') {
+      try {
+        router.prefetch('/login');
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    if (authStatus === 'signed_in') {
+      preloadRazorpayCheckout();
+    }
+  }, [authStatus, router]);
+
+  useEffect(() => {
+    if (step === 3 && authStatus === 'signed_in') {
+      preloadRazorpayCheckout();
+    }
+  }, [step, authStatus]);
 
   const redirectToLogin = () => {
     if (!trek || loginRedirectStarted.current) return;
@@ -228,7 +271,8 @@ function BookingContent() {
     setOpeningLogin(true);
     saveBookingDraft(trek.id, { form, participants, step: 3 });
     const from = `${window.location.pathname}${window.location.search || ''}`;
-    router.push(`/login?from=${encodeURIComponent(from)}`);
+    // Hard navigation is faster than soft router.push for auth handoff.
+    window.location.assign(`/login?from=${encodeURIComponent(from)}`);
   };
   const gearLines = useMemo(
     () => (trek ? cartForTrek(trek.id) : []),
@@ -308,28 +352,51 @@ function BookingContent() {
       setStep((s) => s + 1);
       return;
     }
-    if (paying || openingLogin || authStatus === 'checking') return;
+    if (paying || openingLogin) return;
     setPayError('');
+
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) {
+      setPayError('Please complete your contact details and travel date.');
+      setStep(2);
+      return;
+    }
+
+    // Guest → login immediately (no waiting on /me hydrate).
+    if (authStatus === 'guest') {
+      redirectToLogin();
+      return;
+    }
+
+    // Still peeking — one ultra-light check, then login or pay.
+    if (authStatus === 'checking') {
+      try {
+        const peek = await fetch('/api/user/auth/session', {
+          credentials: 'include',
+          cache: 'default',
+        });
+        if (!peek.ok) {
+          setAuthStatus('guest');
+          redirectToLogin();
+          return;
+        }
+        setAuthStatus('signed_in');
+      } catch {
+        setAuthStatus('guest');
+        redirectToLogin();
+        return;
+      }
+    }
+
     setPaying(true);
 
     try {
-      if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) {
-        setPayError('Please complete your contact details and travel date.');
-        setPaying(false);
-        setStep(2);
-        return;
-      }
-
-      // UX gate — backend APIs also reject anonymous callers with 401.
-      if (authStatus !== 'signed_in' || !signedInUser) {
-        redirectToLogin();
-        setPaying(false);
-        return;
-      }
-
-      const checkoutRes = await fetch('/api/bookings/checkout', {
+      // One round-trip: create booking + Razorpay order (script already preloaded).
+      const payRes = await fetch('/api/bookings/pay', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `pay:${trek.id}:${form.date}:${personCount}:${Date.now()}`,
+        },
         credentials: 'include',
         body: JSON.stringify({
           trekId: trek.id,
@@ -355,20 +422,30 @@ function BookingContent() {
           })),
         }),
       });
-      const checkoutBody = await checkoutRes.json();
-      if (checkoutRes.status === 401 || checkoutBody.code === 'AUTH_REQUIRED') {
+      const payBody = await payRes.json();
+      if (payRes.status === 401 || payBody.code === 'AUTH_REQUIRED') {
         setPayError('Please log in to continue with your booking.');
         redirectToLogin();
         setPaying(false);
         return;
       }
-      if (!checkoutRes.ok) {
-        throw new Error(checkoutBody.error || 'Unable to create booking');
+      if (!payRes.ok) {
+        throw new Error(payBody.error || 'Unable to start payment');
       }
 
-      const { bookingId, checkoutToken } = checkoutBody as {
+      const { bookingId, checkoutToken, ...order } = payBody as {
         bookingId: string;
         checkoutToken: string;
+        keyId: string;
+        razorpayOrderId: string;
+        amount: number;
+        currency: string;
+        name: string;
+        description: string;
+        prefill: { name: string; email: string; contact: string };
+        theme: { color: string };
+        image?: string;
+        notes?: Record<string, string>;
       };
 
       clearBookingDraft(trek.id);
@@ -379,27 +456,7 @@ function BookingContent() {
         /* ignore */
       }
 
-      const orderRes = await fetch('/api/payments/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': `order:${bookingId}`,
-        },
-        credentials: 'include',
-        body: JSON.stringify({ bookingId, checkoutToken }),
-      });
-      const orderBody = await orderRes.json();
-      if (orderRes.status === 401 || orderBody.code === 'AUTH_REQUIRED') {
-        setPayError('Please log in to continue with your booking.');
-        redirectToLogin();
-        setPaying(false);
-        return;
-      }
-      if (!orderRes.ok) {
-        throw new Error(orderBody.error || 'Unable to start payment');
-      }
-
-      await openRazorpayCheckout(orderBody, {
+      await openRazorpayCheckout(order, {
         onSuccess: async (response) => {
           try {
             const verifyRes = await fetch('/api/payments/verify', {
@@ -791,11 +848,7 @@ function BookingContent() {
               )}
               <button
                 type="submit"
-                disabled={
-                  paying ||
-                  openingLogin ||
-                  (step === 3 && authStatus === 'checking')
-                }
+                disabled={paying || openingLogin}
                 className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm disabled:opacity-70 bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25`}
               >
                 {paying ? (
@@ -806,17 +859,13 @@ function BookingContent() {
                   <>
                     <Loader className="w-4 h-4 animate-spin" /> Opening login…
                   </>
-                ) : step === 3 && authStatus === 'checking' ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" /> Checking login…
-                  </>
                 ) : (
                   <>
                     {step === 1
                       ? 'Continue to Details'
                       : step === 2
                         ? 'Review Booking'
-                        : authStatus !== 'signed_in'
+                        : authStatus === 'guest'
                           ? 'Login to Continue'
                           : `Continue to Payment · ₹${payableNow.toLocaleString()}`}
                     <ArrowRight className="w-4 h-4" />

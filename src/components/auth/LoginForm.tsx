@@ -41,11 +41,11 @@ export default function LoginForm() {
     if (err && ERROR_MESSAGES[err]) setError(ERROR_MESSAGES[err]);
     if (params.get('reset') === '1') setResetNotice(true);
 
-    fetch('/api/user/auth/me', { credentials: 'include' })
+    // Fast session peek — bounce signed-in users back instantly (no DB /me).
+    fetch('/api/user/auth/session', { credentials: 'include', cache: 'default' })
       .then(async (res) => {
         if (res.ok) {
-          router.replace(safeFrom);
-          return;
+          window.location.replace(safeFrom);
         }
       })
       .catch(() => undefined);
@@ -58,7 +58,7 @@ export default function LoginForm() {
         if (body.redirectUri) setGoogleRedirectUri(body.redirectUri);
       })
       .catch(() => setGoogleReady(false));
-  }, [router]);
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,8 +89,8 @@ export default function LoginForm() {
           // ignore
         }
       }
-      router.push(returnTo);
-      router.refresh();
+      // Hard return is faster than soft router.push + refresh after auth cookie set.
+      window.location.assign(returnTo);
     } catch {
       setError('Unable to connect. Please try again.');
     } finally {

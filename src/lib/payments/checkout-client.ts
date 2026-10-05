@@ -40,6 +40,10 @@ function loadRazorpayScript(): Promise<void> {
     }
     const existing = document.querySelector<HTMLScriptElement>('script[data-razorpay-checkout]');
     if (existing) {
+      if (window.Razorpay) {
+        resolve();
+        return;
+      }
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay')));
       return;
@@ -51,6 +55,14 @@ function loadRazorpayScript(): Promise<void> {
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('Failed to load Razorpay Checkout'));
     document.body.appendChild(script);
+  });
+}
+
+/** Warm the Razorpay SDK before Pay Now so checkout opens without a script wait. */
+export function preloadRazorpayCheckout(): void {
+  if (typeof window === 'undefined') return;
+  void loadRazorpayScript().catch(() => {
+    /* ignore warm failures — open path still loads */
   });
 }
 

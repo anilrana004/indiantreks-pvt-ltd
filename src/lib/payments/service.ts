@@ -68,13 +68,12 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
   }
 
-  // Opportunistic hold cleanup (non-blocking for correctness — also checked on pay)
-  try {
-    const { expireStaleInventoryHolds } = await import('@/lib/inventory/service');
-    await expireStaleInventoryHolds(50);
-  } catch {
-    /* ignore cleanup errors */
-  }
+  // Opportunistic hold cleanup — never block Pay Now on this.
+  void import('@/lib/inventory/service')
+    .then(({ expireStaleInventoryHolds }) => expireStaleInventoryHolds(50))
+    .catch(() => {
+      /* ignore cleanup errors */
+    });
 
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
