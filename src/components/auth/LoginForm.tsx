@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import AuthShell from '@/components/auth/AuthShell';
-import { USER_TOKEN_STORAGE_KEY } from '@/lib/user-auth/constants';
 import { DEFAULT_SAFE_RETURN_PATH, safeReturnPath } from '@/lib/security/urls';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -80,13 +79,7 @@ export default function LoginForm() {
         setError(body.error || 'Unable to sign in.');
         return;
       }
-      if (body.token) {
-        try {
-          sessionStorage.setItem(USER_TOKEN_STORAGE_KEY, body.token);
-        } catch {
-          // ignore
-        }
-      }
+      // Session is httpOnly cookie only — do not store tokens in sessionStorage.
       // Hard return is faster than soft router.push + refresh after auth cookie set.
       window.location.assign(returnTo);
     } catch {

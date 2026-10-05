@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbUnavailableResponse, requireAdmin, unauthorizedResponse } from '@/lib/admin/auth';
+import {
+  forbiddenResponse,
+  requireAdminPermission,
+  unauthorizedResponse,
+} from '@/lib/admin/auth';
+import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
 import { listSiteUsers, listSiteUsersPage, siteUsersToCsv } from '@/lib/operations/service';
 
 export async function GET(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return unauthorizedResponse();
+  const gate = await requireAdminPermission('users.read');
+  if (!gate.admin) return unauthorizedResponse();
+  if (gate.forbidden) return forbiddenResponse();
   if (!isDbConfigured()) return dbUnavailableResponse();
 
   try {
@@ -24,6 +30,7 @@ export async function GET(req: NextRequest) {
           headers: {
             'Content-Type': 'text/csv; charset=utf-8',
             'Content-Disposition': `attachment; filename="customer-logins-${new Date().toISOString().slice(0, 10)}.csv"`,
+            'Cache-Control': 'no-store, private',
           },
         });
       }
@@ -37,6 +44,7 @@ export async function GET(req: NextRequest) {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Content-Disposition': `attachment; filename="customer-logins-${new Date().toISOString().slice(0, 10)}.json"`,
+          'Cache-Control': 'no-store, private',
         },
       });
     }

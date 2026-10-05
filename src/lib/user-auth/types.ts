@@ -19,6 +19,7 @@ export type PublicUser = {
 export type AuthUserRecord = PublicUser & {
   passwordHash: string | null;
   googleSub: string | null;
+  sessionVersion: number;
 };
 
 export type RegisterUserInput = {

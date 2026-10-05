@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isDbConfigured } from '@/lib/db';
 import { expireStaleBookingHolds } from '@/lib/payments/holds';
+import { timingSafeEqualString } from '@/lib/security/timing';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   const auth = req.headers.get('authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (bearer !== secret) {
+  if (!bearer || !timingSafeEqualString(bearer, secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

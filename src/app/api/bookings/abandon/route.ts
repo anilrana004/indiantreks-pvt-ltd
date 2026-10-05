@@ -8,7 +8,7 @@ import {
   clientIp,
   rateLimitedResponse,
 } from '@/lib/security/rate-limit';
-import { getSessionIdentity, unauthorizedUserResponse } from '@/lib/user-auth/auth';
+import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
 
 export const runtime = 'nodejs';
 
@@ -16,12 +16,12 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   if (!isDbConfigured()) return dbUnavailableResponse();
 
-  const [abuse, session] = await Promise.all([
+  const [abuse, user] = await Promise.all([
     checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
-    getSessionIdentity(),
+    getCurrentUser(),
   ]);
   if (!abuse.allowed) return rateLimitedResponse(abuse.retryAfterSec);
-  if (!session) return unauthorizedUserResponse();
+  if (!user) return unauthorizedUserResponse();
 
   try {
     const body = await req.json();
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const result = await abandonUnpaidCheckout({
       bookingId,
       checkoutToken,
-      userId: session.userId,
+      userId: user.id,
     });
 
     return NextResponse.json(result);

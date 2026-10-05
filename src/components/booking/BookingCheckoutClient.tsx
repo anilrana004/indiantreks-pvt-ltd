@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
-import { ArrowRight, Shield, Check, ChevronRight, Star, Clock, Users, Phone, Calendar, CreditCard, Lock, Percent, Gift, Loader, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Shield, Check, ChevronRight, Star, Users, Phone, Calendar, CreditCard, Lock, Percent, Gift, Loader, Plus, Trash2, Info, UserRound, IndianRupee, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   BOOKING_ADDONS,
@@ -60,15 +60,18 @@ type BookingParticipant = {
   age: string;
   gender: string;
   phone: string;
+  email?: string;
 };
 
-function newParticipant(): BookingParticipant {
+function newParticipant(seed?: Partial<BookingParticipant>): BookingParticipant {
   return {
     id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: '',
     age: '',
     gender: '',
     phone: '',
+    email: '',
+    ...seed,
   };
 }
 
@@ -78,6 +81,23 @@ function formatUserPhone(user: PublicUser): string {
   const digits = user.phone.trim();
   if (digits.startsWith('+')) return digits;
   return `${code} ${digits}`.trim();
+}
+
+function isValidInviteEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/** Append ops-only extras to notes without inventing pricing discounts. */
+function composeCheckoutNotes(
+  baseNotes: string,
+  opts: { voucherCode?: string; coTravellerEmails?: string[] },
+) {
+  const parts = [baseNotes.trim()];
+  const code = opts.voucherCode?.trim();
+  if (code) parts.push(`Voucher / gift code (verify before apply): ${code}`);
+  const emails = (opts.coTravellerEmails || []).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (emails.length) parts.push(`Co-traveller emails: ${emails.join(', ')}`);
+  return parts.filter(Boolean).join('\n');
 }
 
 type BookingDraft = {
@@ -158,6 +178,19 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
   const [profileFilled, setProfileFilled] = useState(false);
   const [gearTick, setGearTick] = useState(0);
   const [livePricing, setLivePricing] = useState<PricingTier[] | null>(null);
+  const [addonIds, setAddonIds] = useState<string[]>(() =>
+    (sp.get('addons') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherNote, setVoucherNote] = useState('');
+  const [showPageHelp, setShowPageHelp] = useState(false);
+  const [showPayHelp, setShowPayHelp] = useState(false);
   const [readyCheckout, setReadyCheckout] = useState<{
     fingerprint: string;
     bookingId: string;
@@ -343,26 +376,60 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     trek.pricing[0];
   const personCount = Math.max(1, parseInt(form.persons, 10) || 1);
   const pickupFee = Math.max(0, parseInt(sp.get('pickupFee') || '0', 10) || 0);
-  const selectedAddonIds = (sp.get('addons') || '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
+  const selectedAddonIds = addonIds;
   const selectedAddons = BOOKING_ADDONS.filter((addon) => selectedAddonIds.includes(addon.id));
   const addOnPerPerson = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
   const unitPrice = selectedPkg.price + pickupFee;
   const tripTotal = unitPrice * personCount + addOnPerPerson * personCount;
-  const urlTotal = parseInt(sp.get('total') || '0', 10);
-  const total = urlTotal > 0 ? urlTotal : tripTotal + gearTotal;
+  const displayTotal = tripTotal + gearTotal;
   const depositAmt = selectedPkg.deposit * personCount;
-  const payableNow = form.payment === 'deposit' ? depositAmt : form.payment === 'full' ? total : Math.ceil(tripTotal / 2) + gearTotal;
+  const payableNow =
+    form.payment === 'deposit'
+      ? depositAmt
+      : form.payment === 'full'
+        ? displayTotal
+        : Math.ceil(tripTotal / 2) + gearTotal;
   const expectedOthers = Math.max(0, personCount - 1);
   const namedParticipants = participants.filter((p) => p.name.trim());
+  const checkoutNotes = composeCheckoutNotes(form.notes, {
+    voucherCode,
+    coTravellerEmails: participants.map((p) => p.email || '').filter(Boolean),
+  });
+
+  const toggleAddon = (id: string) => {
+    setAddonIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const addParticipantByEmail = () => {
+    const email = inviteEmail.trim().toLowerCase();
+    setInviteError('');
+    if (!isValidInviteEmail(email)) {
+      setInviteError('Enter a valid email address.');
+      return;
+    }
+    if (form.email.trim().toLowerCase() === email) {
+      setInviteError('That’s your booking email — add a co-traveller email instead.');
+      return;
+    }
+    if (participants.some((p) => (p.email || '').toLowerCase() === email)) {
+      setInviteError('This co-traveller is already added.');
+      return;
+    }
+    setParticipants((list) => [
+      ...list,
+      newParticipant({
+        email,
+        name: email.split('@')[0]?.replace(/[._-]+/g, ' ') || '',
+      }),
+    ]);
+    setInviteEmail('');
+  };
 
   const payFingerprint = useMemo(() => {
-    const addonIds = selectedAddonIds.join(',');
+    const addonKey = selectedAddonIds.join(',');
     const gearKey = gearLines.map((g) => `${g.gearId}:${g.qty}`).join(',');
     const namedKey = namedParticipants
-      .map((p) => `${p.name}:${p.age}:${p.gender}`)
+      .map((p) => `${p.name}:${p.age}:${p.gender}:${p.email || ''}`)
       .join('|');
     return [
       trek.id,
@@ -375,10 +442,12 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
       form.name.trim(),
       form.city.trim(),
       form.pickup,
-      addonIds,
+      addonKey,
       String(pickupFee),
       gearKey,
       namedKey,
+      voucherCode.trim().toLowerCase(),
+      form.notes.trim(),
       sp.get('batchId') || '',
     ].join('::');
   }, [
@@ -390,12 +459,14 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     form.name,
     form.city,
     form.pickup,
+    form.notes,
     pkgKey,
     personCount,
     selectedAddonIds,
     pickupFee,
     gearLines,
     namedParticipants,
+    voucherCode,
     sp,
   ]);
 
@@ -461,7 +532,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
               city: form.city,
               date: form.date,
               batchId: sp.get('batchId') || undefined,
-              notes: form.notes,
+              notes: checkoutNotes,
               pickup: form.pickup,
               participants: namedParticipants.map(({ name, age, gender, phone }) => ({
                 name,
@@ -540,10 +611,6 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
 
   const updateParticipant = (id: string, patch: Partial<BookingParticipant>) => {
     setParticipants((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  };
-
-  const addParticipant = () => {
-    setParticipants((list) => [...list, newParticipant()]);
   };
 
   const removeParticipant = (id: string) => {
@@ -626,6 +693,11 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
       return;
     }
 
+    if (!acceptedTerms) {
+      setPayError('Please accept the Terms & Conditions to continue.');
+      return;
+    }
+
     // Guest → login immediately (no waiting on /me hydrate).
     if (authStatus === 'guest') {
       redirectToLogin();
@@ -700,7 +772,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
             city: form.city,
             date: form.date,
             batchId: sp.get('batchId') || undefined,
-            notes: form.notes,
+            notes: checkoutNotes,
             pickup: form.pickup,
             participants: namedParticipants.map(({ name, age, gender, phone }) => ({
               name,
@@ -758,7 +830,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
               </ul>
               <div className="mt-3 flex justify-between border-t border-[#16a34a]/10 pt-3 font-semibold">
                 <span>Estimated total</span>
-                <span>₹{total.toLocaleString()}</span>
+                <span>₹{displayTotal.toLocaleString()}</span>
               </div>
             </div>
           )}
@@ -833,7 +905,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                     {[
                       { v: 'deposit', l: 'Advance Deposit', d: `Pay ₹${depositAmt.toLocaleString()} now`, sub: 'Secure your spot' },
                       { v: 'half', l: '50% Now, 50% Later', d: `Pay ₹${Math.ceil(tripTotal / 2).toLocaleString()} now`, sub: 'Split payment' },
-                      { v: 'full', l: 'Full Payment', d: `Pay ₹${total.toLocaleString()} now`, sub: 'Best value' },
+                      { v: 'full', l: 'Full Payment', d: `Pay ₹${displayTotal.toLocaleString()} now`, sub: 'Best value' },
                     ].map(o => (
                       <button key={o.v} type="button" onClick={() => setForm(f => ({ ...f, payment: o.v }))}
                         className={`p-4 rounded-xl border-2 text-center transition-all ${form.payment === o.v ? 'border-[#16a34a] bg-[#16a34a]/5 shadow-sm' : 'border-gray-100 hover:border-gray-200'}`}>
@@ -875,8 +947,25 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Email <span className="text-red-400">*</span></label>
-                      <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm" placeholder="email@example.com" />
+                      <input
+                        type="email"
+                        required
+                        value={form.email}
+                        readOnly={authStatus === 'signed_in' && Boolean(form.email.trim())}
+                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                        className={`w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm ${authStatus === 'signed_in' && form.email.trim() ? 'bg-gray-50 text-gray-700' : ''}`}
+                        placeholder="email@example.com"
+                        title={
+                          authStatus === 'signed_in'
+                            ? 'Bookings are tied to your account email for security'
+                            : undefined
+                        }
+                      />
+                      {authStatus === 'signed_in' && form.email.trim() ? (
+                        <p className="mt-1 text-[11px] text-gray-400">
+                          Linked to your account for security. Co-travellers can be added below.
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-400">*</span></label>
@@ -904,18 +993,101 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                 </div>
 
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
-                      <h2 className="font-bold text-lg text-[#000000]">Other Participants</h2>
+                      <h2 className="font-bold text-lg text-[#000000] flex items-center gap-2">
+                        <Users className="w-5 h-5 text-[#16a34a]" />
+                        Add Participants
+                      </h2>
                       <p className="text-xs text-gray-500 mt-1">
                         {expectedOthers > 0
                           ? `Add details for the other ${expectedOthers} traveller${expectedOthers > 1 ? 's' : ''} joining with you.`
-                          : 'Travelling solo? You can skip this — or add someone if plans change.'}
+                          : 'Travelling solo? You can skip this — or invite someone if plans change.'}
                       </p>
                     </div>
+                  </div>
+
+                  <p className="mb-4 text-xs text-gray-500">
+                    If you&apos;re having trouble booking,{' '}
                     <button
                       type="button"
-                      onClick={addParticipant}
+                      onClick={() => {
+                        clearBookingDraft(trek.id);
+                        setReadyCheckout(null);
+                        setStep(1);
+                        setPayError('');
+                      }}
+                      className="font-semibold text-[#1666d9] hover:underline"
+                    >
+                      click here to try again
+                    </button>
+                    .
+                  </p>
+
+                  {/* Primary booker */}
+                  <div className="mb-5 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/[0.04] p-4 border-l-4 border-l-[#16a34a]">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#15803d] mb-2">
+                      Primary participant
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#16a34a] text-white">
+                        <UserRound className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-[#000000] truncate">
+                          {form.name.trim() || 'Your details'}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {form.email.trim() || 'Email from contact form above'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Invite by email */}
+                  <div className="mb-5">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Add co-participant by email
+                    </label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => {
+                          setInviteEmail(e.target.value);
+                          setInviteError('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addParticipantByEmail();
+                          }
+                        }}
+                        className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                        placeholder="Enter email id to add your co-participant"
+                      />
+                      <button
+                        type="button"
+                        onClick={addParticipantByEmail}
+                        className="shrink-0 rounded-lg bg-[#16a34a] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#15803d] transition-colors"
+                      >
+                        Search
+                      </button>
+                    </div>
+                    {inviteError ? (
+                      <p className="mt-1.5 text-xs text-red-600">{inviteError}</p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-gray-400">
+                        We&apos;ll save their email with your booking so ops can follow up.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                    <h3 className="text-sm font-bold text-[#000000]">Participant details</h3>
+                    <button
+                      type="button"
+                      onClick={() => setParticipants((list) => [...list, newParticipant()])}
                       className="inline-flex items-center gap-1.5 rounded-full border border-[#16a34a]/30 bg-[#16a34a]/5 px-4 py-2 text-sm font-semibold text-[#15803d] hover:bg-[#16a34a]/10 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
@@ -929,7 +1101,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                       <p className="text-sm text-gray-500">No other participants yet</p>
                       <button
                         type="button"
-                        onClick={addParticipant}
+                        onClick={() => setParticipants((list) => [...list, newParticipant()])}
                         className="mt-3 text-sm font-semibold text-[#16a34a] hover:text-[#15803d]"
                       >
                         + Add a co-traveller
@@ -938,10 +1110,18 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                   ) : (
                     <div className="mt-4 space-y-4">
                       {participants.map((p, index) => (
-                        <div key={p.id} className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                        <div
+                          key={p.id}
+                          className="rounded-xl border border-gray-100 bg-gray-50/80 p-4 border-l-4 border-l-[#16a34a]"
+                        >
                           <div className="mb-3 flex items-center justify-between gap-2">
                             <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
                               Participant {index + 1}
+                              {p.email ? (
+                                <span className="ml-2 font-medium normal-case text-[#15803d]">
+                                  {p.email}
+                                </span>
+                              ) : null}
                             </span>
                             <button
                               type="button"
@@ -962,6 +1142,16 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                                 onChange={(e) => updateParticipant(p.id, { name: e.target.value })}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
                                 placeholder="Co-traveller full name"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                              <input
+                                type="email"
+                                value={p.email || ''}
+                                onChange={(e) => updateParticipant(p.id, { email: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                                placeholder="cotraveller@email.com"
                               />
                             </div>
                             <div>
@@ -1000,6 +1190,15 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                               />
                             </div>
                           </div>
+
+                          <div className="mt-4 border-t border-gray-200/80 pt-3">
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#15803d]">
+                              Add-ons
+                            </p>
+                            <p className="mb-2 text-[11px] text-gray-500">
+                              Trip add-ons apply to the whole booking (see payment summary). Toggle them below on Confirm, or from your trek page.
+                            </p>
+                          </div>
                         </div>
                       ))}
                       {expectedOthers > 0 && participants.length < expectedOthers ? (
@@ -1014,57 +1213,138 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
             )}
 
             {step === 3 && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
-                <div className="text-center mb-6">
-                  <div className="w-14 h-14 bg-[#16a34a]/10 rounded-full flex items-center justify-center mx-auto mb-3"><Check className="w-7 h-7 text-[#16a34a]" /></div>
-                  <h2 className="font-bold text-xl text-[#000000]">Review & Confirm</h2>
-                  <p className="text-gray-500 text-sm mt-1">Please verify all details before submitting</p>
+              <div className="space-y-5">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
+                  <div className="text-center mb-6">
+                    <div className="w-14 h-14 bg-[#16a34a]/10 rounded-full flex items-center justify-center mx-auto mb-3"><Check className="w-7 h-7 text-[#16a34a]" /></div>
+                    <h2 className="font-bold text-xl text-[#000000]">Review & Confirm</h2>
+                    <p className="text-gray-500 text-sm mt-1">Please verify all details before paying</p>
+                  </div>
+
+                  <p className="mb-4 text-center text-xs text-gray-500">
+                    Having trouble?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearBookingDraft(trek.id);
+                        setReadyCheckout(null);
+                        setStep(1);
+                        setPayError('');
+                      }}
+                      className="font-semibold text-[#1666d9] hover:underline"
+                    >
+                      Click here to try again
+                    </button>
+                  </p>
+
+                  <div className="bg-gray-50 rounded-xl p-5 space-y-3">
+                    <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={trek.images[0]} alt="" className="w-full h-full object-cover" /></div>
+                      <div><h4 className="font-semibold text-sm text-[#000000]">{trek.title}</h4><p className="text-xs text-gray-500">{trek.duration} &middot; {trek.difficulty}</p></div>
+                    </div>
+                    <div className="space-y-2.5 text-sm">
+                      <div className="flex justify-between"><span className="text-gray-500">Package</span><span className="font-semibold">{pkgLabel} - ₹{selectedPkg.price.toLocaleString()}/person</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Travel Date</span><span className="font-semibold">{form.date}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Persons</span><span className="font-semibold">{personCount} (Men {form.men}, Women {form.women})</span></div>
+                      {form.pickup ? <div className="flex justify-between"><span className="text-gray-500">Pickup</span><span className="font-semibold">{form.pickup}{pickupFee ? ` (+₹${pickupFee.toLocaleString()}/person)` : ''}</span></div> : null}
+                      <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="font-semibold">{form.name || 'Not provided'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Phone</span><span className="font-semibold">{form.phone || 'Not provided'}</span></div>
+                      {form.city.trim() ? <div className="flex justify-between"><span className="text-gray-500">City</span><span className="font-semibold">{form.city}</span></div> : null}
+                      {namedParticipants.length > 0 ? (
+                        <div className="pt-1">
+                          <div className="text-gray-500 mb-1.5">Other participants</div>
+                          <ul className="space-y-1 text-right">
+                            {namedParticipants.map((p) => (
+                              <li key={p.id} className="font-semibold">
+                                {p.name || p.email}
+                                {p.email && p.name ? ` · ${p.email}` : ''}
+                                {p.age.trim() ? ` · ${p.age}` : ''}
+                                {p.gender.trim() ? ` · ${p.gender}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      <div className="flex justify-between"><span className="text-gray-500">Payment Mode</span><span className="font-semibold">{form.payment === 'deposit' ? 'Advance Deposit' : form.payment === 'full' ? 'Full Payment' : '50% Now'}</span></div>
+                      {form.notes && <div className="flex justify-between"><span className="text-gray-500">Notes</span><span className="font-semibold text-right max-w-[60%]">{form.notes}</span></div>}
+                      {gearLines.length > 0 && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-gray-500">Rental gear</span>
+                          <span className="font-semibold text-right max-w-[60%]">{formatGearLines(gearLines)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <hr className="border-gray-200" />
+                    <div className="flex justify-between items-center"><span className="text-gray-600 font-medium">Total Amount</span><span className="font-bold text-xl text-[#000000]">₹{displayTotal.toLocaleString()}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-gray-500 text-sm">Payable Now</span><span className="font-bold text-lg text-[#16a34a]">₹{payableNow.toLocaleString()}</span></div>
+                  </div>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-5 space-y-3">
-                  <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={trek.images[0]} alt="" className="w-full h-full object-cover" /></div>
-                    <div><h4 className="font-semibold text-sm text-[#000000]">{trek.title}</h4><p className="text-xs text-gray-500">{trek.duration} &middot; {trek.difficulty}</p></div>
+
+                {/* Add-ons (editable on confirm — mirrors TTH participant add-ons) */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
+                  <h3 className="mb-1 text-sm font-bold uppercase tracking-wider text-[#15803d]">Add-ons</h3>
+                  <p className="mb-4 text-xs text-gray-500">Optional extras charged per person and included in your Razorpay order.</p>
+                  <ul className="space-y-3">
+                    {BOOKING_ADDONS.map((addon) => {
+                      const checked = selectedAddonIds.includes(addon.id);
+                      return (
+                        <li key={addon.id}>
+                          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-100 px-4 py-3 hover:border-[#16a34a]/30 transition-colors">
+                            <span className="flex items-center gap-3 text-sm text-[#000000]">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleAddon(addon.id)}
+                                className="h-4 w-4 rounded border-gray-300 text-[#16a34a] focus:ring-[#16a34a]"
+                              />
+                              <span className="font-medium">{addon.name}</span>
+                              <Info className="h-3.5 w-3.5 text-gray-300" aria-hidden />
+                            </span>
+                            <span className="shrink-0 text-sm font-semibold text-[#000000]">
+                              ₹{(addon.price * personCount).toLocaleString()}
+                              <span className="ml-1 text-[10px] font-normal text-gray-400">
+                                ({personCount} × ₹{addon.price.toLocaleString()})
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                {/* Vouchers — collect code for ops; do not invent a discount */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 lg:p-7">
+                  <h3 className="mb-1 text-sm font-bold uppercase tracking-wider text-gray-500">Vouchers &amp; discounts</h3>
+                  <p className="mb-3 text-xs text-gray-500">
+                    Have a gift card or promo code? Add it here — our team verifies eligibility before applying any reduction.
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={voucherCode}
+                      onChange={(e) => {
+                        setVoucherCode(e.target.value);
+                        setVoucherNote('');
+                      }}
+                      className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#16a34a] focus:ring-2 focus:ring-[#16a34a]/20 outline-none transition-all text-sm"
+                      placeholder="Enter voucher / gift code"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!voucherCode.trim()) {
+                          setVoucherNote('Enter a code first.');
+                          return;
+                        }
+                        setVoucherNote('Saved with your booking notes. Eligible codes are applied by our team after verification.');
+                      }}
+                      className="shrink-0 rounded-lg border border-[#16a34a]/30 bg-[#16a34a]/5 px-5 py-2.5 text-sm font-semibold text-[#15803d] hover:bg-[#16a34a]/10 transition-colors"
+                    >
+                      Apply
+                    </button>
                   </div>
-                  <div className="space-y-2.5 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">Package</span><span className="font-semibold">{pkgLabel} - ₹{selectedPkg.price.toLocaleString()}/person</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Travel Date</span><span className="font-semibold">{form.date}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Persons</span><span className="font-semibold">{personCount} (Men {form.men}, Women {form.women})</span></div>
-                    {form.pickup ? <div className="flex justify-between"><span className="text-gray-500">Pickup</span><span className="font-semibold">{form.pickup}{pickupFee ? ` (+₹${pickupFee.toLocaleString()}/person)` : ''}</span></div> : null}
-                    {selectedAddons.map((addon) => (
-                      <div key={addon.id} className="flex justify-between gap-3">
-                        <span className="text-gray-500">{addon.name}</span>
-                        <span className="font-semibold">+₹{(addon.price * personCount).toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="font-semibold">{form.name || 'Not provided'}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Phone</span><span className="font-semibold">{form.phone || 'Not provided'}</span></div>
-                    {form.city.trim() ? <div className="flex justify-between"><span className="text-gray-500">City</span><span className="font-semibold">{form.city}</span></div> : null}
-                    {namedParticipants.length > 0 ? (
-                      <div className="pt-1">
-                        <div className="text-gray-500 mb-1.5">Other participants</div>
-                        <ul className="space-y-1 text-right">
-                          {namedParticipants.map((p) => (
-                            <li key={p.id} className="font-semibold">
-                              {p.name}
-                              {p.age.trim() ? ` · ${p.age}` : ''}
-                              {p.gender.trim() ? ` · ${p.gender}` : ''}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    <div className="flex justify-between"><span className="text-gray-500">Payment Mode</span><span className="font-semibold">{form.payment === 'deposit' ? 'Advance Deposit' : form.payment === 'full' ? 'Full Payment' : '50% Now'}</span></div>
-                    {form.notes && <div className="flex justify-between"><span className="text-gray-500">Notes</span><span className="font-semibold text-right max-w-[60%]">{form.notes}</span></div>}
-                    {gearLines.length > 0 && (
-                      <div className="flex justify-between gap-3">
-                        <span className="text-gray-500">Rental gear</span>
-                        <span className="font-semibold text-right max-w-[60%]">{formatGearLines(gearLines)}</span>
-                      </div>
-                    )}
-                  </div>
-                  <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center"><span className="text-gray-600 font-medium">Total Amount</span><span className="font-bold text-xl text-[#000000]">₹{total.toLocaleString()}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-gray-500 text-sm">Payable Now</span><span className="font-bold text-lg text-[#16a34a]">₹{payableNow.toLocaleString()}</span></div>
+                  {voucherNote ? <p className="mt-2 text-xs text-[#15803d]">{voucherNote}</p> : null}
                 </div>
               </div>
             )}
@@ -1075,6 +1355,59 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                   {payError}
                 </div>
               ) : null}
+
+              {step === 3 ? (
+                <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                  <label className="flex items-start gap-3 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(e) => setAcceptedTerms(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#16a34a] focus:ring-[#16a34a]"
+                    />
+                    <span>
+                      I accept the{' '}
+                      <Link href="/terms" target="_blank" className="font-semibold text-[#1666d9] hover:underline">
+                        Terms &amp; Conditions
+                      </Link>
+                      {' · '}
+                      <Link href="/terms" target="_blank" className="font-semibold text-[#1666d9] hover:underline">
+                        Read T&amp;C
+                      </Link>
+                    </span>
+                  </label>
+
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPageHelp((v) => !v)}
+                      className="flex w-full items-center gap-2 text-left text-xs font-medium text-gray-600 hover:text-[#16a34a]"
+                    >
+                      <span aria-hidden>➜</span> Current page instructions
+                      <ChevronDown className={`ml-auto h-3.5 w-3.5 transition-transform ${showPageHelp ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showPageHelp ? (
+                      <p className="pl-5 text-xs text-gray-500 leading-relaxed">
+                        Confirm package, travellers, and add-ons. Accept terms, then tap Pay Now. Razorpay opens for UPI, cards, netbanking, and wallets.
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setShowPayHelp((v) => !v)}
+                      className="flex w-full items-center gap-2 text-left text-xs font-medium text-gray-600 hover:text-[#16a34a]"
+                    >
+                      <span aria-hidden>➜</span> After clicking &ldquo;Pay Now&rdquo;: outcome?
+                      <ChevronDown className={`ml-auto h-3.5 w-3.5 transition-transform ${showPayHelp ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showPayHelp ? (
+                      <p className="pl-5 text-xs text-gray-500 leading-relaxed">
+                        Complete payment in Razorpay. We verify the payment on our server, then confirm your booking and show a success page. Seats stay held only while payment is in progress.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex gap-3">
               {step > 1 && (
                 <button type="button" onClick={() => setStep(s => s - 1)} disabled={paying}
@@ -1084,7 +1417,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
               )}
               <button
                 type="submit"
-                disabled={paying || openingLogin}
+                disabled={paying || openingLogin || (step === 3 && !acceptedTerms && authStatus === 'signed_in')}
                 aria-busy={paying || (step === 3 && warmingPay && !readyCheckout)}
                 className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm disabled:opacity-70 bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25`}
               >
@@ -1104,7 +1437,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                         ? 'Review Booking'
                         : authStatus === 'guest'
                           ? 'Login to Continue'
-                          : `Continue to Payment · ₹${payableNow.toLocaleString()}`}
+                          : `Pay Now · ₹${payableNow.toLocaleString()}`}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -1127,18 +1460,25 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                   </div>
                 </div>
                 <div className="p-5 space-y-3 text-sm">
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Clock className="w-4 h-4 text-[#16a34a]" /><span>{trek.duration}</span>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>{trek.duration}</span>
+                    <span aria-hidden>·</span>
+                    <span className="truncate">{trek.location}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Users className="w-4 h-4 text-[#16a34a]" /><span>{trek.groupSize}</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <IndianRupee className="h-4 w-4 text-[#16a34a]" />
+                    <h4 className="font-bold text-sm text-[#000000]">Payment Summary</h4>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <MapPin className="w-4 h-4 text-[#16a34a]" /><span className="truncate">{trek.location}</span>
+                  <div className="flex justify-between items-center text-gray-600">
+                    <span>No. of participants</span>
+                    <span className="font-semibold text-[#000000]">
+                      {personCount} {personCount === 1 ? 'Person' : 'Persons'}
+                    </span>
                   </div>
-                  <hr className="border-gray-100" />
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Trip ({personCount} × ₹{unitPrice.toLocaleString()})</span>
+                    <span className="text-gray-500">
+                      Price × ₹{unitPrice.toLocaleString()}
+                    </span>
                     <span className="font-semibold">₹{(unitPrice * personCount).toLocaleString()}</span>
                   </div>
                   {pickupFee > 0 ? (
@@ -1171,13 +1511,26 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                     <span className="text-gray-500">Package</span>
                     <span className="text-[#16a34a] font-medium text-xs">{pkgLabel}</span>
                   </div>
+                  {voucherCode.trim() ? (
+                    <div className="flex justify-between items-center text-xs text-gray-500">
+                      <span>Voucher noted</span>
+                      <span className="font-medium">{voucherCode.trim()}</span>
+                    </div>
+                  ) : null}
                   <hr className="border-gray-100" />
                   <div className="flex justify-between items-center">
-                    <span className="font-medium">Total</span>
-                    <span className="font-bold text-lg text-[#000000]">₹{total.toLocaleString()}</span>
+                    <span className="font-medium">Gross total</span>
+                    <span className="font-bold text-lg text-[#000000]">₹{displayTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-start pt-1">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700">Total amount</div>
+                      <div className="text-[10px] text-gray-400">Inclusive of taxes &amp; fees</div>
+                    </div>
+                    <span className="font-bold text-xl text-[#000000]">₹{displayTotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1">
-                    <span className="text-xs text-gray-500">Payable Now</span>
+                    <span className="text-xs text-gray-500">Payable now</span>
                     <span className="font-bold text-[#16a34a]">₹{payableNow.toLocaleString()}</span>
                   </div>
                 </div>
@@ -1226,7 +1579,3 @@ export default function BookingCheckoutClient({ trek }: { trek: BookingTrek }) {
     </Suspense>
   );
 }
-
-const MapPin = ({ className, children, ...props }: { className?: string; children?: React.ReactNode }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-);

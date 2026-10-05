@@ -6,9 +6,8 @@ import { getBookingPublicSummary } from '@/lib/payments/service';
 export const runtime = 'nodejs';
 
 function resolveCheckoutToken(req: NextRequest): string {
-  const header = req.headers.get('x-checkout-token') || '';
-  if (header.trim()) return header.trim();
-  return (req.nextUrl.searchParams.get('token') || '').trim();
+  // Header only — query tokens leak via Referer, logs, and shared URLs.
+  return (req.headers.get('x-checkout-token') || '').trim();
 }
 
 export async function GET(

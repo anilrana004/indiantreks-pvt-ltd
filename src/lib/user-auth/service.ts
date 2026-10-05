@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { getDb, isDbConfigured, schema } from '@/lib/db';
 import { PASSWORD_RESET_TTL_MS } from '@/lib/user-auth/constants';
 import { generateRawToken, hashPassword, hashToken, verifyPassword } from '@/lib/user-auth/password';
@@ -30,6 +30,7 @@ type LocalStore = {
     googleSub: string | null;
     emailVerified: boolean;
     avatarUrl: string | null;
+    sessionVersion: number;
     createdAt: string;
     updatedAt: string;
   }>;
@@ -73,6 +74,7 @@ function readLocalStore(): LocalStore {
             dateOfBirth: u.dateOfBirth ?? null,
             gender: u.gender ?? null,
             nationality: u.nationality ?? null,
+            sessionVersion: typeof u.sessionVersion === 'number' ? u.sessionVersion : 0,
           }))
         : [],
       resetTokens: Array.isArray(parsed.resetTokens) ? parsed.resetTokens : [],
@@ -131,6 +133,7 @@ function rowToAuth(row: typeof siteUsers.$inferSelect): AuthUserRecord {
     createdAt: row.createdAt.toISOString(),
     passwordHash: row.passwordHash,
     googleSub: row.googleSub,
+    sessionVersion: row.sessionVersion ?? 0,
   };
 }
 
@@ -153,6 +156,7 @@ function localToAuth(row: LocalStore['users'][number]): AuthUserRecord {
     createdAt: row.createdAt,
     passwordHash: row.passwordHash,
     googleSub: row.googleSub,
+    sessionVersion: row.sessionVersion ?? 0,
   };
 }
 
@@ -257,6 +261,7 @@ export async function registerUser(
     googleSub: null,
     emailVerified: false,
     avatarUrl: null,
+    sessionVersion: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -361,6 +366,7 @@ export async function upsertGoogleUser(input: {
     googleSub: input.googleSub,
     emailVerified: true,
     avatarUrl: input.avatarUrl ?? null,
+    sessionVersion: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -400,6 +406,33 @@ export async function createPasswordResetToken(email: string): Promise<{ rawToke
   return { rawToken, userId: user.id };
 }
 
+/** Invalidate all existing signed cookies for this account (logout / password change). */
+export async function bumpUserSessionVersion(userId: string): Promise<void> {
+  if (!userId) return;
+
+  if (isDbConfigured()) {
+    const db = getDb()!;
+    await db
+      .update(siteUsers)
+      .set({
+        sessionVersion: sql`${siteUsers.sessionVersion} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(siteUsers.id, userId));
+    return;
+  }
+
+  const store = readLocalStore();
+  const idx = store.users.findIndex((u) => u.id === userId);
+  if (idx < 0) return;
+  store.users[idx] = {
+    ...store.users[idx]!,
+    sessionVersion: (store.users[idx]!.sessionVersion ?? 0) + 1,
+    updatedAt: new Date().toISOString(),
+  };
+  writeLocalStore(store);
+}
+
 export async function resetPasswordWithToken(
   rawToken: string,
   newPassword: string,
@@ -425,7 +458,11 @@ export async function resetPasswordWithToken(
     const passwordHash = await hashPassword(newPassword);
     await db
       .update(siteUsers)
-      .set({ passwordHash, updatedAt: new Date() })
+      .set({
+        passwordHash,
+        sessionVersion: sql`${siteUsers.sessionVersion} + 1`,
+        updatedAt: new Date(),
+      })
       .where(eq(siteUsers.id, row.userId));
     await db
       .update(passwordResetTokens)
@@ -446,6 +483,7 @@ export async function resetPasswordWithToken(
   store.users[idx] = {
     ...store.users[idx]!,
     passwordHash: await hashPassword(newPassword),
+    sessionVersion: (store.users[idx]!.sessionVersion ?? 0) + 1,
     updatedAt: new Date().toISOString(),
   };
   token.usedAt = new Date().toISOString();
@@ -487,15 +525,15 @@ export async function updateUserProfile(
   return toPublic(localToAuth(store.users[idx]!));
 }
 
-export async function listBookingsForEmail(email: string): Promise<Booking[]> {
-  const normalized = normalizeEmail(email);
+export async function listBookingsForUserId(userId: string): Promise<Booking[]> {
+  if (!userId) return [];
 
   if (isDbConfigured()) {
     const db = getDb()!;
     const rows = await db
       .select()
       .from(bookings)
-      .where(eq(bookings.email, normalized))
+      .where(eq(bookings.userId, userId))
       .orderBy(desc(bookings.createdAt));
     return rows.map((row) => ({
       id: row.id,
@@ -515,7 +553,19 @@ export async function listBookingsForEmail(email: string): Promise<Booking[]> {
     }));
   }
 
-  return readLocalStore().bookings.filter((b) => b.email.toLowerCase() === normalized);
+  // Local fallback has no userId on bookings — do not leak cross-account by email.
+  return [];
+}
+
+/** @deprecated Prefer listBookingsForUserId — email listing enables PII IDOR. */
+export async function listBookingsForEmail(email: string): Promise<Booking[]> {
+  const normalized = normalizeEmail(email);
+  if (isDbConfigured()) {
+    // Intentionally empty for security — callers must use userId.
+    void normalized;
+    return [];
+  }
+  return [];
 }
 
 export async function recordAuthEvent(input: {

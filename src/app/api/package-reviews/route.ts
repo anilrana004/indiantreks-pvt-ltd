@@ -3,6 +3,11 @@ import { isCloudinaryUploadConfigured, uploadToCloudinary } from '@/lib/cloudina
 import { clientIp, consumePaymentRateLimit } from '@/lib/payments/rate-limit';
 import { rateLimitedResponse } from '@/lib/security/rate-limit';
 import {
+  assertSafeImageFile,
+  sanitizePackageHref,
+  sanitizeUploadFolder,
+} from '@/lib/security/uploads';
+import {
   createGuestReview,
   hashReviewIp,
   isMongoConfigured,
@@ -14,18 +19,16 @@ import { PACKAGE_REVIEW_LIMITS } from '@/lib/package-reviews';
 const KINDS = new Set<PackageKind>(['trek', 'yatra', 'trip']);
 const MAX_IMAGE_BYTES = PACKAGE_REVIEW_LIMITS.maxImageBytes;
 const MAX_PHOTOS = PACKAGE_REVIEW_LIMITS.maxPhotos;
+const MAX_NAME = 80;
+const MAX_TEXT = 4000;
+const MAX_PACKAGE_ID = 80;
 
 function badRequest(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
 async function uploadReviewImage(file: File, folder: string) {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('Only image files are allowed.');
-  }
-  if (file.size <= 0 || file.size > MAX_IMAGE_BYTES) {
-    throw new Error('Each image must be under 900 KB.');
-  }
+  await assertSafeImageFile(file, MAX_IMAGE_BYTES);
   return uploadToCloudinary(file, folder);
 }
 
@@ -36,6 +39,10 @@ export async function GET(req: NextRequest) {
     }
     const packageId = req.nextUrl.searchParams.get('packageId')?.trim() ?? '';
     if (!packageId) return badRequest('packageId is required.');
+    if (packageId.length > MAX_PACKAGE_ID || !/^[a-zA-Z0-9_-]+$/.test(packageId)) {
+      return badRequest('Invalid packageId.');
+    }
+    // Public list — emails never included (mapPublic strips them).
     const reviews = await listApprovedReviewsForPackage(packageId);
     return NextResponse.json({ reviews });
   } catch (error) {
@@ -68,17 +75,20 @@ export async function POST(req: NextRequest) {
     }
 
     const form = await req.formData();
-    const name = String(form.get('name') || '').trim();
-    const email = String(form.get('email') || '').trim();
-    const text = String(form.get('text') || '').trim();
-    const packageId = String(form.get('packageId') || '').trim();
-    const packageTitle = String(form.get('packageTitle') || '').trim();
-    const packageHref = String(form.get('packageHref') || '').trim();
+    const name = String(form.get('name') || '').trim().slice(0, MAX_NAME);
+    const email = String(form.get('email') || '').trim().toLowerCase().slice(0, 254);
+    const text = String(form.get('text') || '').trim().slice(0, MAX_TEXT);
+    const packageId = String(form.get('packageId') || '').trim().slice(0, MAX_PACKAGE_ID);
+    const packageTitle = String(form.get('packageTitle') || '').trim().slice(0, 160);
+    const packageHrefRaw = String(form.get('packageHref') || '').trim();
     const packageKindRaw = String(form.get('packageKind') || 'trek').trim() as PackageKind;
     const rating = Number(form.get('rating') || 0);
 
     if (!name || !email || !text || !packageId) {
       return badRequest('Name, email, review text, and package are required.');
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(packageId)) {
+      return badRequest('Invalid packageId.');
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return badRequest('Please enter a valid email address.');
@@ -86,12 +96,15 @@ export async function POST(req: NextRequest) {
     if (text.length < PACKAGE_REVIEW_LIMITS.minTextLength) {
       return badRequest('Review text must be at least 40 characters.');
     }
-    if (rating < 1 || rating > 5) {
+    if (rating < 1 || rating > 5 || !Number.isInteger(rating)) {
       return badRequest('Rating must be between 1 and 5.');
     }
     if (!KINDS.has(packageKindRaw)) {
       return badRequest('packageKind must be trek, yatra, or trip.');
     }
+
+    const fallbackHref = `/${packageKindRaw === 'yatra' ? 'yatra' : packageKindRaw === 'trip' ? 'trips' : 'treks'}/${packageId}`;
+    const packageHref = sanitizePackageHref(packageHrefRaw, fallbackHref);
 
     const avatarFile = form.get('avatar');
     const photoFiles = form
@@ -117,7 +130,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const folder = `indiantreks/reviews/${packageId}`;
+    const folder = sanitizeUploadFolder(`indiantreks/reviews/${packageId}`, 'indiantreks/reviews');
 
     if (avatarFile instanceof File && avatarFile.size > 0) {
       const uploaded = await uploadReviewImage(avatarFile, folder);
@@ -131,10 +144,11 @@ export async function POST(req: NextRequest) {
       photoPublicIds.push(uploaded.publicId);
     }
 
+    // createGuestReview returns PublicGuestReview (no email).
     const review = await createGuestReview({
       packageId,
       packageTitle: packageTitle || packageId,
-      packageHref: packageHref || `/${packageKindRaw === 'yatra' ? 'yatra' : packageKindRaw === 'trip' ? 'trips' : 'treks'}/${packageId}`,
+      packageHref,
       packageKind: packageKindRaw,
       name,
       email,
@@ -144,7 +158,7 @@ export async function POST(req: NextRequest) {
       photoUrls,
       avatarPublicId,
       photoPublicIds,
-      userAgent: req.headers.get('user-agent'),
+      userAgent: req.headers.get('user-agent')?.slice(0, 300) ?? null,
       ipHash: hashReviewIp(ip),
     });
 
@@ -159,6 +173,8 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not save review right now.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status =
+      /image|Image|KB|recognized|required|supported/i.test(message) ? 400 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

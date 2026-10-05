@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, unauthorizedResponse } from '@/lib/admin/auth';
+import {
+  forbiddenResponse,
+  requireAdminPermission,
+  unauthorizedResponse,
+} from '@/lib/admin/auth';
 import { cldBlogImage } from '@/lib/cloudinary';
 import { isCloudinaryUploadConfigured, uploadToCloudinary } from '@/lib/cloudinary-server';
+import { assertSafeImageFile, sanitizeUploadFolder } from '@/lib/security/uploads';
+
+const MAX_ADMIN_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return unauthorizedResponse();
+  const gate = await requireAdminPermission('content.write');
+  if (!gate.admin) return unauthorizedResponse();
+  if (gate.forbidden) return forbiddenResponse();
 
   if (!isCloudinaryUploadConfigured()) {
     return NextResponse.json(
@@ -20,21 +28,19 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file');
-    const folder = String(formData.get('folder') || 'indiantreks/blog');
+    const folder = sanitizeUploadFolder(
+      String(formData.get('folder') || 'indiantreks/blog'),
+      'indiantreks/blog',
+    );
 
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: 'A valid image file is required.' }, { status: 400 });
     }
 
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'Only image uploads are supported.' }, { status: 400 });
-    }
-
-    if (file.size > 8 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Image must be 8 MB or smaller.' }, { status: 400 });
-    }
+    await assertSafeImageFile(file, MAX_ADMIN_IMAGE_BYTES);
 
     const uploaded = await uploadToCloudinary(file, folder);
+    const altBase = file.name.replace(/\.[^.]+$/, '').replace(/-/g, ' ').slice(0, 80);
 
     return NextResponse.json({
       url: uploaded.secureUrl,
@@ -43,10 +49,12 @@ export async function POST(req: NextRequest) {
       height: uploaded.height,
       featuredUrl: cldBlogImage(uploaded.secureUrl, 'featured'),
       inlineUrl: cldBlogImage(uploaded.secureUrl, 'inline'),
-      markdown: `![${file.name.replace(/\.[^.]+$/, '').replace(/-/g, ' ')}](${uploaded.secureUrl} "${file.name.replace(/\.[^.]+$/, '').replace(/-/g, ' ')}")`,
+      markdown: `![${altBase}](${uploaded.secureUrl} "${altBase}")`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Upload failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status =
+      /image|Image|KB|recognized|required|supported|MB/i.test(message) ? 400 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

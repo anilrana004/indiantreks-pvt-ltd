@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ENTITY_TYPES } from '@/lib/knowledge/config';
 import { revalidatePublishedPostSurfaces } from '@/lib/knowledge/revalidation';
 import type { EntityLink, EntityType, PostSection } from '@/lib/knowledge/types';
+import { timingSafeEqualString } from '@/lib/security/timing';
 
 type RevalidatePayload = {
   slug?: string;
@@ -22,8 +23,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Revalidation not configured' }, { status: 503 });
   }
 
-  const auth = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
-  if (!auth || auth !== secret) {
+  const auth = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || '';
+  if (!auth || !timingSafeEqualString(auth, secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

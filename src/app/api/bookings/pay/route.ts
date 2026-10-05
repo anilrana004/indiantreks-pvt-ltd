@@ -13,8 +13,7 @@ import {
   clientIp,
   rateLimitedResponse,
 } from '@/lib/security/rate-limit';
-import { getSessionIdentity, unauthorizedUserResponse } from '@/lib/user-auth/auth';
-import type { PublicUser } from '@/lib/user-auth/types';
+import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
 
 export const runtime = 'nodejs';
 
@@ -45,19 +44,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // JWT peek (no DB) + IP abuse in parallel — hot path.
-  const [abuse, session] = await Promise.all([
+  // Full user load (DB) — rejects deleted users and revoked session versions.
+  const [abuse, user] = await Promise.all([
     checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
-    getSessionIdentity(),
+    getCurrentUser(),
   ]);
   if (!abuse.allowed) {
     return rateLimitedResponse(abuse.retryAfterSec);
   }
-  if (!session) {
+  if (!user) {
     return unauthorizedUserResponse();
   }
-
-  const user = { id: session.userId, email: session.email } as PublicUser;
 
   const [checkoutLimited, orderLimited] = await Promise.all([
     checkUserRateLimit(CHECKOUT_LIMIT, user.id),

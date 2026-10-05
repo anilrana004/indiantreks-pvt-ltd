@@ -129,6 +129,8 @@ export const siteUsers = pgTable('site_users', {
   googleSub: text('google_sub'),
   emailVerified: boolean('email_verified').notNull().default(false),
   avatarUrl: text('avatar_url'),
+  /** Bumped on password reset / logout-everywhere — must match signed session. */
+  sessionVersion: integer('session_version').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

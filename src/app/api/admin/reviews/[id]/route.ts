@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, unauthorizedResponse } from '@/lib/admin/auth';
+import {
+  forbiddenResponse,
+  requireAdminPermission,
+  unauthorizedResponse,
+} from '@/lib/admin/auth';
 import { isMongoConfigured, updateGuestReviewStatus } from '@/lib/reviews/service';
 import type { GuestReviewStatus } from '@/lib/reviews/types';
 
@@ -9,8 +13,9 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
-  const admin = await requireAdmin();
-  if (!admin) return unauthorizedResponse();
+  const gate = await requireAdminPermission('content.write');
+  if (!gate.admin) return unauthorizedResponse();
+  if (gate.forbidden) return forbiddenResponse();
 
   if (!isMongoConfigured()) {
     return NextResponse.json(
@@ -30,7 +35,7 @@ export async function PATCH(
       );
     }
 
-    const review = await updateGuestReviewStatus(id, status, admin.email);
+    const review = await updateGuestReviewStatus(id, status, gate.admin.email);
     if (!review) {
       return NextResponse.json({ error: 'Review not found.' }, { status: 404 });
     }

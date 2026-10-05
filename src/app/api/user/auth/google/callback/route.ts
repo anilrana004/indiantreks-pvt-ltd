@@ -64,7 +64,9 @@ export async function GET(req: Request) {
       avatarUrl: profile.picture,
     });
 
-    const token = await createUserSessionToken(user.id, user.email);
+    const { findAuthUserById } = await import('@/lib/user-auth/service');
+    const authUser = await findAuthUserById(user.id);
+    const token = await createUserSessionToken(user.id, user.email, authUser?.sessionVersion ?? 0);
     const res = NextResponse.redirect(new URL(returnTo, origin));
     res.cookies.set(USER_COOKIE, token, userSessionCookieOptions());
     clearOauthCookies(res);

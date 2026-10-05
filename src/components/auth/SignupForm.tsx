@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react';
 import AuthShell from '@/components/auth/AuthShell';
-import { USER_TOKEN_STORAGE_KEY } from '@/lib/user-auth/constants';
 import {
   GENDER_OPTIONS,
   NATIONALITY_OPTIONS,
@@ -102,13 +101,7 @@ export default function SignupForm() {
         setError(body.error || 'Unable to create account.');
         return;
       }
-      if (body.token) {
-        try {
-          sessionStorage.setItem(USER_TOKEN_STORAGE_KEY, body.token);
-        } catch {
-          // ignore
-        }
-      }
+      // Session is httpOnly cookie only — do not store tokens in sessionStorage.
       router.push(returnTo);
       router.refresh();
     } catch {

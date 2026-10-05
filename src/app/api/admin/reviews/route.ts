@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, unauthorizedResponse } from '@/lib/admin/auth';
+import {
+  forbiddenResponse,
+  requireAdminPermission,
+  unauthorizedResponse,
+} from '@/lib/admin/auth';
 import {
   guestReviewsToCsv,
   isMongoConfigured,
@@ -8,8 +12,9 @@ import {
 import type { GuestReviewStatus } from '@/lib/reviews/types';
 
 export async function GET(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return unauthorizedResponse();
+  const gate = await requireAdminPermission('content.write');
+  if (!gate.admin) return unauthorizedResponse();
+  if (gate.forbidden) return forbiddenResponse();
 
   if (!isMongoConfigured()) {
     return NextResponse.json(
@@ -38,17 +43,23 @@ export async function GET(req: NextRequest) {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
           'Content-Disposition': `attachment; filename="guest-reviews-${new Date().toISOString().slice(0, 10)}.csv"`,
+          'Cache-Control': 'no-store, private',
         },
       });
     }
 
     if (format === 'json-download') {
-      const body = JSON.stringify({ exportedAt: new Date().toISOString(), count: reviews.length, reviews }, null, 2);
+      const body = JSON.stringify(
+        { exportedAt: new Date().toISOString(), count: reviews.length, reviews },
+        null,
+        2,
+      );
       return new NextResponse(body, {
         status: 200,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Content-Disposition': `attachment; filename="guest-reviews-${new Date().toISOString().slice(0, 10)}.json"`,
+          'Cache-Control': 'no-store, private',
         },
       });
     }

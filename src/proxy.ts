@@ -39,7 +39,12 @@ function csrfOriginAllowed(request: NextRequest): boolean {
   if (!pathname.startsWith('/api/')) return true;
 
   const origin = request.headers.get('origin');
+  const isMoneyPath =
+    pathname.startsWith('/api/bookings') || pathname.startsWith('/api/payments');
+
   if (!origin) {
+    // Cookie-authenticated money APIs: fail closed without Origin.
+    if (isMoneyPath) return false;
     // Same-origin navigations / some native clients omit Origin; allow without Origin
     // only for non-cross-site cookie posts when Sec-Fetch-Site is present.
     const site = request.headers.get('sec-fetch-site');

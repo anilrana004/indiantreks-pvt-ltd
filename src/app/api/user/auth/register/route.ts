@@ -49,8 +49,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    const token = await createUserSessionToken(result.user.id, result.user.email);
-    const response = NextResponse.json({ success: true, user: result.user, token }, { status: 201 });
+    const { findAuthUserById } = await import('@/lib/user-auth/service');
+    const authUser = await findAuthUserById(result.user.id);
+    const token = await createUserSessionToken(
+      result.user.id,
+      result.user.email,
+      authUser?.sessionVersion ?? 0,
+    );
+    // Cookie-only session — never return the token to JS.
+    const response = NextResponse.json({ success: true, user: result.user }, { status: 201 });
     response.cookies.set(USER_COOKIE, token, userSessionCookieOptions());
 
     await recordAuthEvent({

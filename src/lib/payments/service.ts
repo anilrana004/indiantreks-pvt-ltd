@@ -91,7 +91,11 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
   });
 
   const name = input.name.trim();
-  const email = input.email.trim().toLowerCase();
+  // Always bind booking email to the authenticated account — prevents dashboard PII IDOR
+  // when a customer types someone else's email into the form.
+  const accountEmail = user.email.trim().toLowerCase();
+  const formEmail = input.email.trim().toLowerCase();
+  const email = accountEmail;
   const phone = input.phone.trim();
   if (!name || !email || !phone || !input.trekId || !input.date) {
     throw new Error('Missing required booking fields');
@@ -123,6 +127,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
   const notesParts = [
     input.notes?.trim() || '',
     input.pickup ? `Pickup: ${input.pickup}` : '',
+    formEmail && formEmail !== accountEmail ? `Alternate contact email: ${formEmail}` : '',
   ].filter(Boolean);
 
   const reservation = await reserveInventory({
@@ -235,7 +240,11 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
   });
 
   const name = input.name.trim();
-  const email = input.email.trim().toLowerCase();
+  // Always bind booking email to the authenticated account — prevents dashboard PII IDOR
+  // when a customer types someone else's email into the form.
+  const accountEmail = user.email.trim().toLowerCase();
+  const formEmail = input.email.trim().toLowerCase();
+  const email = accountEmail;
   const phone = input.phone.trim();
   if (!name || !email || !phone || !input.trekId || !input.date) {
     throw new Error('Missing required booking fields');
@@ -311,6 +320,7 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
   const notesParts = [
     input.notes?.trim() || '',
     input.pickup ? `Pickup: ${input.pickup}` : '',
+    formEmail && formEmail !== accountEmail ? `Alternate contact email: ${formEmail}` : '',
   ].filter(Boolean);
 
   const razorpay = getRazorpayClient();

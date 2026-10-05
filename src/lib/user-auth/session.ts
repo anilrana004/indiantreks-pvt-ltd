@@ -58,17 +58,26 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 export type UserSessionPayload = {
   userId: string;
   email: string;
+  sessionVersion: number;
 };
 
-/** Create a signed customer session token (userId + email + expiry + HMAC). */
-export async function createUserSessionToken(userId: string, email: string): Promise<string> {
+/**
+ * Create a signed customer session token.
+ * Format: userId|email|exp|sessionVersion|hmac
+ */
+export async function createUserSessionToken(
+  userId: string,
+  email: string,
+  sessionVersion = 0,
+): Promise<string> {
   const exp = String(Date.now() + USER_SESSION_TTL_MS);
-  const payload = `${userId}|${email}|${exp}`;
+  const sv = String(Math.max(0, Math.floor(sessionVersion) || 0));
+  const payload = `${userId}|${email}|${exp}|${sv}`;
   const signature = await signPayload(payload);
   return bufferToBase64Url(encoder.encode(`${payload}|${signature}`));
 }
 
-/** Verify signed customer session; returns userId + email when valid. */
+/** Verify signed customer session; returns userId + email + sessionVersion when valid. */
 export async function verifyUserSessionToken(
   token: string | undefined | null,
 ): Promise<UserSessionPayload | null> {
@@ -77,12 +86,13 @@ export async function verifyUserSessionToken(
   try {
     const decoded = new TextDecoder().decode(base64UrlToBytes(token));
     const parts = decoded.split('|');
-    if (parts.length !== 4) return null;
+    // New format: 5 parts. Reject legacy 4-part tokens (forces re-login after hardening).
+    if (parts.length !== 5) return null;
 
-    const [userId, email, expStr, signature] = parts;
-    if (!userId || !email || !expStr || !signature) return null;
+    const [userId, email, expStr, svStr, signature] = parts;
+    if (!userId || !email || !expStr || !svStr || !signature) return null;
 
-    const payload = `${userId}|${email}|${expStr}`;
+    const payload = `${userId}|${email}|${expStr}|${svStr}`;
     const expected = await signPayload(payload);
     const sigBuf = base64UrlToBytes(signature);
     const expBuf = base64UrlToBytes(expected);
@@ -91,14 +101,17 @@ export async function verifyUserSessionToken(
     const exp = Number(expStr);
     if (!Number.isFinite(exp) || Date.now() > exp) return null;
 
-    return { userId, email };
+    const sessionVersion = Number(svStr);
+    if (!Number.isFinite(sessionVersion) || sessionVersion < 0) return null;
+
+    return { userId, email, sessionVersion };
   } catch {
     return null;
   }
 }
 
 export function userSessionCookieOptions() {
-  const secure = process.env.NODE_ENV === 'production';
+  const secure = isProductionRuntime() || process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
     secure,
