@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Script from 'next/script';
 import { ArrowRight, Ban } from 'lucide-react';
 import { getTrekById } from '@/lib/data';
 import BookingCheckoutClient from '@/components/booking/BookingCheckoutClient';
@@ -38,6 +39,20 @@ export default async function BookingPage({
       <link rel="preconnect" href="https://checkout.razorpay.com" crossOrigin="anonymous" />
       <link rel="preconnect" href="https://api.razorpay.com" crossOrigin="anonymous" />
       <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+      <link
+        rel="preload"
+        href="https://checkout.razorpay.com/v1/checkout.js"
+        as="script"
+      />
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="afterInteractive"
+        data-razorpay-checkout="1"
+        onLoad={() => {
+          const el = document.querySelector<HTMLScriptElement>('script[data-razorpay-checkout]');
+          if (el) el.dataset.ready = '1';
+        }}
+      />
       <BookingCheckoutClient trek={trek} />
     </>
   );

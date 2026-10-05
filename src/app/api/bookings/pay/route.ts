@@ -22,6 +22,20 @@ export const runtime = 'nodejs';
  * Single-round-trip Pay Now: inventory hold + booking + Razorpay order (parallelized).
  * Used for Confirm-step warm and click fallback — same correctness guarantees.
  */
+export async function HEAD() {
+  // Connection warm from booking SPA — no body work.
+  return new NextResponse(null, { status: 204 });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      Allow: 'HEAD, OPTIONS, POST',
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   if (!isDbConfigured()) return dbUnavailableResponse();
   if (!isRazorpayConfigured()) {

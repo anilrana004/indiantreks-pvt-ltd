@@ -32,6 +32,20 @@ const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
 
 let razorpayLoadPromise: Promise<void> | null = null;
 
+function ensureHeadLink(rel: string, href: string, attrs?: Record<string, string>) {
+  if (typeof document === 'undefined') return;
+  if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = rel;
+  link.href = href;
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      link.setAttribute(k, v);
+    }
+  }
+  document.head.appendChild(link);
+}
+
 function loadRazorpayScript(): Promise<void> {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('Razorpay requires a browser'));
@@ -54,14 +68,26 @@ function loadRazorpayScript(): Promise<void> {
         resolve();
         return;
       }
-      existing.addEventListener('load', finish, { once: true });
+      existing.addEventListener('load', () => {
+        existing.dataset.ready = '1';
+        finish();
+      }, { once: true });
       existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay')), {
         once: true,
       });
-      // Script may already be complete (e.g. Next <Script />).
+      // Next <Script /> may already be complete without dataset.ready.
       if (existing.dataset.ready === '1' || existing.getAttribute('data-loaded') === 'true') {
         queueMicrotask(finish);
+        return;
       }
+      const poll = window.setInterval(() => {
+        if (window.Razorpay) {
+          window.clearInterval(poll);
+          existing.dataset.ready = '1';
+          resolve();
+        }
+      }, 40);
+      window.setTimeout(() => window.clearInterval(poll), 12000);
       return;
     }
 
@@ -86,18 +112,10 @@ function loadRazorpayScript(): Promise<void> {
 /** Warm the Razorpay SDK before Pay Now so checkout opens without a script wait. */
 export function preloadRazorpayCheckout(): void {
   if (typeof window === 'undefined') return;
-  // Touch Razorpay origins early (desktop + mobile).
-  const ensureLink = (rel: string, href: string) => {
-    if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = rel;
-    link.href = href;
-    if (rel === 'preconnect') link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-  };
-  ensureLink('preconnect', 'https://checkout.razorpay.com');
-  ensureLink('preconnect', 'https://api.razorpay.com');
-  ensureLink('dns-prefetch', 'https://checkout.razorpay.com');
+  ensureHeadLink('preconnect', 'https://checkout.razorpay.com', { crossorigin: 'anonymous' });
+  ensureHeadLink('preconnect', 'https://api.razorpay.com', { crossorigin: 'anonymous' });
+  ensureHeadLink('dns-prefetch', 'https://checkout.razorpay.com');
+  ensureHeadLink('preload', RAZORPAY_SRC, { as: 'script' });
   void loadRazorpayScript().catch(() => {
     /* ignore warm failures — open path still loads */
   });
@@ -106,6 +124,10 @@ export function preloadRazorpayCheckout(): void {
 /** Awaitable warm — use before opening so Pay Now never waits on script I/O. */
 export function ensureRazorpayReady(): Promise<void> {
   return loadRazorpayScript();
+}
+
+export function isRazorpayReady(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.Razorpay);
 }
 
 /**
@@ -123,18 +145,16 @@ function checkoutDisplayConfig() {
   };
 }
 
-/** Opens official Razorpay Standard Checkout — do not recreate their UI. */
-export async function openRazorpayCheckout(
+function buildRazorpayInstance(
   order: RazorpayCheckoutOrder,
   handlers: {
     onSuccess: (response: RazorpaySuccessResponse) => void | Promise<void>;
     onDismiss?: () => void;
   },
-): Promise<void> {
-  await loadRazorpayScript();
+) {
   if (!window.Razorpay) throw new Error('Razorpay SDK unavailable');
 
-  const rzp = new window.Razorpay({
+  return new window.Razorpay({
     key: order.keyId,
     amount: order.amount,
     currency: order.currency,
@@ -156,7 +176,30 @@ export async function openRazorpayCheckout(
       ondismiss: () => handlers.onDismiss?.(),
     },
   });
+}
 
-  // Open immediately — script is pre-warmed on booking / confirm step.
-  rzp.open();
+/**
+ * Instant open when SDK is already warmed (TTH-style): construct + open() with no await.
+ * Throws if checkout.js is not ready — caller should fall back to openRazorpayCheckout.
+ */
+export function openRazorpayCheckoutSync(
+  order: RazorpayCheckoutOrder,
+  handlers: {
+    onSuccess: (response: RazorpaySuccessResponse) => void | Promise<void>;
+    onDismiss?: () => void;
+  },
+): void {
+  buildRazorpayInstance(order, handlers).open();
+}
+
+/** Opens official Razorpay Standard Checkout — do not recreate their UI. */
+export async function openRazorpayCheckout(
+  order: RazorpayCheckoutOrder,
+  handlers: {
+    onSuccess: (response: RazorpaySuccessResponse) => void | Promise<void>;
+    onDismiss?: () => void;
+  },
+): Promise<void> {
+  await loadRazorpayScript();
+  openRazorpayCheckoutSync(order, handlers);
 }

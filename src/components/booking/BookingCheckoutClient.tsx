@@ -5,7 +5,12 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { ArrowRight, Shield, Check, ChevronRight, Star, Clock, Users, Phone, Calendar, CreditCard, Lock, Percent, Gift, Loader, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { trekDetailPath, type PricingTier, type Trek } from '@/lib/data';
+import {
+  BOOKING_ADDONS,
+  trekDetailPath,
+  type BookingTrek,
+  type PricingTier,
+} from '@/lib/booking-checkout-shared';
 import {
   bookingSharingLabel,
   bookingSharingOptions,
@@ -22,16 +27,32 @@ import {
   writeGearCart,
 } from '@/lib/gear-rental';
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
-import { addOns } from '@/lib/trek-detail-content';
 import type { PublicUser } from '@/lib/user-auth/types';
 import {
   ensureRazorpayReady,
+  isRazorpayReady,
   openRazorpayCheckout,
+  openRazorpayCheckoutSync,
   preloadRazorpayCheckout,
   type RazorpayCheckoutOrder,
 } from '@/lib/payments/checkout-client';
 import type { BookingPayment } from '@/lib/operations/types';
 import { safeReturnPath } from '@/lib/security/urls';
+
+/** Stable key for warm + click so the same cart never double-creates a hold/order. */
+function payIdempotencyKey(fingerprint: string) {
+  return `pay:${fingerprint}`;
+}
+
+/** Warm TLS/HTTP2 to Pay Now without creating a booking. */
+function prefetchPayApiConnection() {
+  void fetch('/api/bookings/pay', {
+    method: 'HEAD',
+    credentials: 'include',
+  }).catch(() => {
+    /* 405 still warms the connection */
+  });
+}
 
 type BookingParticipant = {
   id: string;
@@ -108,7 +129,7 @@ function clearBookingDraft(trekId: string) {
   }
 }
 
-function BookingContent({ trek }: { trek: Trek }) {
+function BookingContent({ trek }: { trek: BookingTrek }) {
   const sp = useSearchParams();
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -142,16 +163,19 @@ function BookingContent({ trek }: { trek: Trek }) {
     bookingId: string;
     checkoutToken: string;
     order: RazorpayCheckoutOrder;
+    idempotencyKey: string;
   } | null>(null);
   const [warmingPay, setWarmingPay] = useState(false);
   const readyCheckoutRef = useRef(readyCheckout);
   readyCheckoutRef.current = readyCheckout;
   const warmGen = useRef(0);
+  const warmIdempotencyKeyRef = useRef<string | null>(null);
   const warmPromiseRef = useRef<Promise<{
     fingerprint: string;
     bookingId: string;
     checkoutToken: string;
     order: RazorpayCheckoutOrder;
+    idempotencyKey: string;
   } | null> | null>(null);
 
   useEffect(() => {
@@ -264,9 +288,10 @@ function BookingContent({ trek }: { trek: Trek }) {
     };
   }, []);
 
-  // Prefetch login for guests. Preload Razorpay SDK on mount (TTH-style warm).
+  // Prefetch login for guests. Preload Razorpay SDK + pay API connection (TTH-style warm).
   useEffect(() => {
     preloadRazorpayCheckout();
+    prefetchPayApiConnection();
   }, []);
 
   useEffect(() => {
@@ -279,6 +304,7 @@ function BookingContent({ trek }: { trek: Trek }) {
     }
     if (authStatus === 'signed_in') {
       preloadRazorpayCheckout();
+      prefetchPayApiConnection();
     }
   }, [authStatus, router]);
 
@@ -321,7 +347,7 @@ function BookingContent({ trek }: { trek: Trek }) {
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean);
-  const selectedAddons = addOns.filter((addon) => selectedAddonIds.includes(addon.id));
+  const selectedAddons = BOOKING_ADDONS.filter((addon) => selectedAddonIds.includes(addon.id));
   const addOnPerPerson = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
   const unitPrice = selectedPkg.price + pickupFee;
   const tripTotal = unitPrice * personCount + addOnPerPerson * personCount;
@@ -374,11 +400,12 @@ function BookingContent({ trek }: { trek: Trek }) {
   ]);
 
   /**
-   * Confirm-step warm (TTH-style): booking + Razorpay order ready before Pay click.
-   * Debounced; previous warm abandoned so inventory holds don't pile up.
+   * Early warm (TTH-style): start on step 2 once contact fields are complete so Confirm
+   * already has booking + Razorpay order. Debounce is short on Confirm; longer on Details
+   * to avoid thrashing holds while typing. Abandon previous hold on fingerprint change.
    */
   useEffect(() => {
-    if (step !== 3 || authStatus !== 'signed_in') return;
+    if (step < 2 || authStatus !== 'signed_in') return;
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) return;
 
     const fingerprint = payFingerprint;
@@ -401,49 +428,53 @@ function BookingContent({ trek }: { trek: Trek }) {
     }
 
     const gen = ++warmGen.current;
-    const controller = new AbortController();
+    const idempotencyKey = payIdempotencyKey(fingerprint);
+    warmIdempotencyKeyRef.current = idempotencyKey;
     setWarmingPay(true);
     preloadRazorpayCheckout();
 
     const run = async () => {
       try {
-        await ensureRazorpayReady();
-        const payRes = await fetch('/api/bookings/pay', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': `pay:${fingerprint}`,
-          },
-          credentials: 'include',
-          signal: controller.signal,
-          body: JSON.stringify({
-            trekId: trek.id,
-            packageName: pkgKey,
-            persons: personCount,
-            paymentMode: form.payment as BookingPayment,
-            addonIds: selectedAddonIds,
-            pickupFeePerPerson: pickupFee,
-            gearLines: gearLines.map((g) => ({ gearId: g.gearId, qty: g.qty })),
-            name: form.name,
-            email: form.email,
-            phone: form.phone,
-            city: form.city,
-            date: form.date,
-            batchId: sp.get('batchId') || undefined,
-            notes: form.notes,
-            pickup: form.pickup,
-            participants: namedParticipants.map(({ name, age, gender, phone }) => ({
-              name,
-              age,
-              gender,
-              phone,
-            })),
+        // SDK + pay in parallel — don't serialize script wait before order create.
+        const [, payRes] = await Promise.all([
+          ensureRazorpayReady(),
+          fetch('/api/bookings/pay', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Idempotency-Key': idempotencyKey,
+            },
+            credentials: 'include',
+            // Intentionally not aborted on fingerprint change — completed supersedes
+            // abandon themselves so we never leave an orphan hold after abort.
+            body: JSON.stringify({
+              trekId: trek.id,
+              packageName: pkgKey,
+              persons: personCount,
+              paymentMode: form.payment as BookingPayment,
+              addonIds: selectedAddonIds,
+              pickupFeePerPerson: pickupFee,
+              gearLines: gearLines.map((g) => ({ gearId: g.gearId, qty: g.qty })),
+              name: form.name,
+              email: form.email,
+              phone: form.phone,
+              city: form.city,
+              date: form.date,
+              batchId: sp.get('batchId') || undefined,
+              notes: form.notes,
+              pickup: form.pickup,
+              participants: namedParticipants.map(({ name, age, gender, phone }) => ({
+                name,
+                age,
+                gender,
+                phone,
+              })),
+            }),
           }),
-        });
-        if (gen !== warmGen.current) return null;
+        ]);
         const payBody = await payRes.json();
         if (payRes.status === 401 || payBody.code === 'AUTH_REQUIRED') {
-          setAuthStatus('guest');
+          if (gen === warmGen.current) setAuthStatus('guest');
           return null;
         }
         if (!payRes.ok) return null;
@@ -452,6 +483,20 @@ function BookingContent({ trek }: { trek: Trek }) {
           checkoutToken: string;
         } & RazorpayCheckoutOrder;
         if (!bookingId || !checkoutToken || !order.razorpayOrderId) return null;
+
+        // Superseded by a newer warm — release this hold immediately.
+        if (gen !== warmGen.current) {
+          void fetch('/api/bookings/abandon', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ bookingId, checkoutToken }),
+          }).catch(() => {
+            /* best-effort */
+          });
+          return null;
+        }
+
         try {
           sessionStorage.setItem(`it-checkout:${bookingId}`, checkoutToken);
         } catch {
@@ -462,8 +507,9 @@ function BookingContent({ trek }: { trek: Trek }) {
           bookingId,
           checkoutToken,
           order: order as RazorpayCheckoutOrder,
+          idempotencyKey,
         };
-        if (gen === warmGen.current) setReadyCheckout(ready);
+        setReadyCheckout(ready);
         return ready;
       } catch {
         return null;
@@ -472,14 +518,15 @@ function BookingContent({ trek }: { trek: Trek }) {
       }
     };
 
+    // Confirm: near-instant. Details: longer debounce so typing doesn't spam holds.
+    const debounceMs = step >= 3 ? 80 : 350;
     const timer = window.setTimeout(() => {
       const promise = run();
       warmPromiseRef.current = promise;
-    }, 280);
+    }, debounceMs);
 
     return () => {
       window.clearTimeout(timer);
-      controller.abort();
     };
     // Fingerprint encodes all pay-critical fields — avoid re-warming on referential churn.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
@@ -503,7 +550,7 @@ function BookingContent({ trek }: { trek: Trek }) {
     setParticipants((list) => list.filter((p) => p.id !== id));
   };
 
-  const launchCheckout = async (
+  const launchCheckout = (
     bookingId: string,
     checkoutToken: string,
     order: RazorpayCheckoutOrder,
@@ -515,8 +562,12 @@ function BookingContent({ trek }: { trek: Trek }) {
       /* ignore */
     }
 
-    await openRazorpayCheckout(order, {
-      onSuccess: async (response) => {
+    const handlers = {
+      onSuccess: async (response: {
+        razorpay_order_id: string;
+        razorpay_payment_id: string;
+        razorpay_signature: string;
+      }) => {
         try {
           const verifyRes = await fetch('/api/payments/verify', {
             method: 'POST',
@@ -550,7 +601,14 @@ function BookingContent({ trek }: { trek: Trek }) {
         setPaying(false);
         setPayError('Payment window closed. You can try again when ready.');
       },
-    });
+    };
+
+    // Instant path: construct + open() synchronously when SDK is warm (no await after click).
+    if (isRazorpayReady()) {
+      openRazorpayCheckoutSync(order, handlers);
+      return;
+    }
+    void openRazorpayCheckout(order, handlers);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -597,10 +655,10 @@ function BookingContent({ trek }: { trek: Trek }) {
     setPaying(true);
 
     try {
-      // Instant path: Confirm warm already created booking + Razorpay order.
+      // Instant path: warm already created booking + Razorpay order — open sync.
       let ready = readyCheckoutRef.current;
       if (ready && ready.fingerprint === payFingerprint) {
-        await launchCheckout(ready.bookingId, ready.checkoutToken, ready.order);
+        launchCheckout(ready.bookingId, ready.checkoutToken, ready.order);
         return;
       }
 
@@ -609,19 +667,23 @@ function BookingContent({ trek }: { trek: Trek }) {
         ready = await warmPromiseRef.current;
         if (ready && ready.fingerprint === payFingerprint) {
           setReadyCheckout(ready);
-          await launchCheckout(ready.bookingId, ready.checkoutToken, ready.order);
+          launchCheckout(ready.bookingId, ready.checkoutToken, ready.order);
           return;
         }
       }
 
       // Fallback: create booking + order live (parallel SDK ready).
+      // Same fingerprint key as warm — server reuses if warm already succeeded.
+      const idempotencyKey = payIdempotencyKey(payFingerprint);
+      warmIdempotencyKeyRef.current = idempotencyKey;
+
       const [, payRes] = await Promise.all([
         ensureRazorpayReady(),
         fetch('/api/bookings/pay', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Idempotency-Key': `pay:${payFingerprint}`,
+            'Idempotency-Key': idempotencyKey,
           },
           credentials: 'include',
           body: JSON.stringify({
@@ -665,7 +727,7 @@ function BookingContent({ trek }: { trek: Trek }) {
         checkoutToken: string;
       } & RazorpayCheckoutOrder;
 
-      await launchCheckout(bookingId, checkoutToken, order);
+      launchCheckout(bookingId, checkoutToken, order);
     } catch (err) {
       setPaying(false);
       setPayError(err instanceof Error ? err.message : 'Payment could not be started');
@@ -1023,6 +1085,7 @@ function BookingContent({ trek }: { trek: Trek }) {
               <button
                 type="submit"
                 disabled={paying || openingLogin}
+                aria-busy={paying || (step === 3 && warmingPay && !readyCheckout)}
                 className={`flex-1 flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full transition-all text-sm shadow-sm disabled:opacity-70 bg-[#16a34a] hover:bg-[#15803d] text-white shadow-[#16a34a]/25`}
               >
                 {paying ? (
@@ -1032,10 +1095,6 @@ function BookingContent({ trek }: { trek: Trek }) {
                 ) : step === 3 && openingLogin ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" /> Opening login…
-                  </>
-                ) : step === 3 && warmingPay && !readyCheckout ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" /> Preparing payment…
                   </>
                 ) : (
                   <>
@@ -1156,7 +1215,7 @@ function BookingContent({ trek }: { trek: Trek }) {
   );
 }
 
-export default function BookingCheckoutClient({ trek }: { trek: Trek }) {
+export default function BookingCheckoutClient({ trek }: { trek: BookingTrek }) {
   return (
     <Suspense fallback={
       <div className="pt-28 min-h-screen flex items-center justify-center">

@@ -4,6 +4,16 @@ import {
   assertBookingStatusTransition,
   assertPaymentStatusTransition,
 } from '@/lib/bookings/state-machine';
+import {
+  normalizeParticipantsInput,
+  replaceBookingParticipants,
+} from '@/lib/bookings/participants';
+import {
+  attachHoldToBooking,
+  expireStaleInventoryHolds,
+  releaseHold,
+  reserveInventory,
+} from '@/lib/inventory/service';
 import { getCurrentUser } from '@/lib/user-auth/auth';
 import type { PublicUser } from '@/lib/user-auth/types';
 import type {
@@ -76,11 +86,9 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
   }
 
   // Opportunistic hold cleanup — never block Pay Now on this.
-  void import('@/lib/inventory/service')
-    .then(({ expireStaleInventoryHolds }) => expireStaleInventoryHolds(50))
-    .catch(() => {
-      /* ignore cleanup errors */
-    });
+  void expireStaleInventoryHolds(50).catch(() => {
+    /* ignore cleanup errors */
+  });
 
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
@@ -116,10 +124,6 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     input.notes?.trim() || '',
     input.pickup ? `Pickup: ${input.pickup}` : '',
   ].filter(Boolean);
-
-  const { reserveInventory, attachHoldToBooking, releaseHold } = await import(
-    '@/lib/inventory/service'
-  );
 
   const reservation = await reserveInventory({
     trekId: input.trekId,
@@ -171,10 +175,6 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     row = inserted[0];
     if (!row) throw new Error('Failed to create booking');
 
-    const {
-      normalizeParticipantsInput,
-      replaceBookingParticipants,
-    } = await import('@/lib/bookings/participants');
     const normalized = normalizeParticipantsInput(input.participants, persons);
     // Hold link + participants are independent after insert.
     await Promise.all([
@@ -217,7 +217,7 @@ export type PayNowCheckoutInput = CheckoutBookingInput & {
 };
 
 /**
- * Single Pay Now path: reserve inventory, then create booking + Razorpay order in parallel.
+ * Single Pay Now path: price → (inventory reserve ∥ Razorpay order) → booking insert.
  * Returns everything needed to open Standard Checkout with no second round-trip.
  */
 export async function createPayNowCheckout(input: PayNowCheckoutInput) {
@@ -230,11 +230,9 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
     throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
   }
 
-  void import('@/lib/inventory/service')
-    .then(({ expireStaleInventoryHolds }) => expireStaleInventoryHolds(50))
-    .catch(() => {
-      /* ignore */
-    });
+  void expireStaleInventoryHolds(50).catch(() => {
+    /* ignore */
+  });
 
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
@@ -248,38 +246,40 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
 
   const db = requireDb();
 
-  // Idempotent retry: return existing open order for this key (same fingerprint / click).
-  const [existingTx] = await db
-    .select()
-    .from(paymentTransactions)
-    .where(eq(paymentTransactions.idempotencyKey, idempotencyKey))
-    .limit(1);
-  if (existingTx?.razorpayOrderId) {
-    const booking = await loadBooking(existingTx.bookingId);
-    if (
-      booking &&
-      booking.userId === user.id &&
-      booking.paymentStatus !== 'paid' &&
-      booking.status !== 'cancelled' &&
-      booking.status !== 'expired' &&
-      isTrustedCheckoutBooking(booking)
-    ) {
-      // Rotate checkout token so retries / page-refresh still verify cleanly.
-      const rotatedToken = createCheckoutToken();
-      await db
-        .update(bookings)
-        .set({ checkoutTokenHash: hashToken(rotatedToken), updatedAt: new Date() })
-        .where(eq(bookings.id, booking.id));
-      logPayment('pay_now_reused', {
-        bookingId: booking.id,
-        razorpayOrderId: existingTx.razorpayOrderId,
-        idempotencyKey,
-      });
-      return {
-        checkoutToken: rotatedToken,
-        reused: true as const,
-        ...orderResponseFromTx(booking, existingTx),
-      };
+  // Idempotent retry: same fingerprint / click returns the existing open order.
+  {
+    const [existingTx] = await db
+      .select()
+      .from(paymentTransactions)
+      .where(eq(paymentTransactions.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (existingTx?.razorpayOrderId) {
+      const booking = await loadBooking(existingTx.bookingId);
+      if (
+        booking &&
+        booking.userId === user.id &&
+        booking.paymentStatus !== 'paid' &&
+        booking.status !== 'cancelled' &&
+        booking.status !== 'expired' &&
+        isTrustedCheckoutBooking(booking)
+      ) {
+        // Rotate checkout token so retries / page-refresh still verify cleanly.
+        const rotatedToken = createCheckoutToken();
+        await db
+          .update(bookings)
+          .set({ checkoutTokenHash: hashToken(rotatedToken), updatedAt: new Date() })
+          .where(eq(bookings.id, booking.id));
+        logPayment('pay_now_reused', {
+          bookingId: booking.id,
+          razorpayOrderId: existingTx.razorpayOrderId,
+          idempotencyKey,
+        });
+        return {
+          checkoutToken: rotatedToken,
+          reused: true as const,
+          ...orderResponseFromTx(booking, existingTx),
+        };
+      }
     }
   }
 
@@ -313,62 +313,22 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
     input.pickup ? `Pickup: ${input.pickup}` : '',
   ].filter(Boolean);
 
-  const { reserveInventory, attachHoldToBooking, releaseHold } = await import(
-    '@/lib/inventory/service'
-  );
+  const razorpay = getRazorpayClient();
+  const receipt = referenceCode.slice(0, 40);
 
-  const reservation = await reserveInventory({
-    trekId: input.trekId,
-    startDate: input.date,
-    batchId: input.batchId,
-    quantity: persons,
-    userId: user.id,
-    expiresAt: holdExpiresAt,
-  });
-
+  // Overlap inventory reserve with Razorpay Orders API (dominant latency).
+  // Orphan unpaid Razorpay orders are harmless if reserve fails afterward.
+  let reservation: Awaited<ReturnType<typeof reserveInventory>> | null = null;
   try {
-    const razorpay = getRazorpayClient();
-    const receipt = referenceCode.slice(0, 40);
-
-    // Overlap the slow Razorpay Orders API with the booking insert (TTH-style readiness).
-    const [inserted, order] = await Promise.all([
-      db
-        .insert(bookings)
-        .values({
-          id: bookingId,
-          trekId: input.trekId,
-          trekTitle: pricing.trekTitle,
-          name,
-          email,
-          phone,
-          package: pricing.packageName,
-          persons,
-          date: reservation.startDate,
-          payment: input.paymentMode,
-          amount: pricing.payableRupees,
-          status: 'payment_processing',
-          notes: notesParts.join('\n'),
-          userId: user.id,
-          referenceCode,
-          city: input.city?.trim() || '',
-          participantsJson: JSON.stringify(participants),
-          pricingSnapshot: JSON.stringify({
-            ...pricing.snapshot,
-            batchId: reservation.batchId,
-            holdId: reservation.holdId,
-          }),
-          payablePaise: pricing.payablePaise,
-          totalPaise: pricing.totalPaise,
-          currency: 'INR',
-          checkoutTokenHash: hashToken(checkoutToken),
-          paymentStatus: 'processing',
-          holdExpiresAt,
-          batchId: reservation.batchId,
-          holdId: reservation.holdId,
-          emailStatus: 'not_configured',
-          updatedAt: new Date(),
-        })
-        .returning(),
+    const [res, order] = await Promise.all([
+      reserveInventory({
+        trekId: input.trekId,
+        startDate: input.date,
+        batchId: input.batchId,
+        quantity: persons,
+        userId: user.id,
+        expiresAt: holdExpiresAt,
+      }),
       razorpay.orders.create({
         amount: pricing.payablePaise,
         currency: 'INR',
@@ -381,16 +341,52 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
         },
       }),
     ]);
+    reservation = res;
+
+    const normalized = normalizeParticipantsInput(input.participants, persons);
+
+    const inserted = await db
+      .insert(bookings)
+      .values({
+        id: bookingId,
+        trekId: input.trekId,
+        trekTitle: pricing.trekTitle,
+        name,
+        email,
+        phone,
+        package: pricing.packageName,
+        persons,
+        date: reservation.startDate,
+        payment: input.paymentMode,
+        amount: pricing.payableRupees,
+        status: 'payment_processing',
+        notes: notesParts.join('\n'),
+        userId: user.id,
+        referenceCode,
+        city: input.city?.trim() || '',
+        participantsJson: JSON.stringify(participants),
+        pricingSnapshot: JSON.stringify({
+          ...pricing.snapshot,
+          batchId: reservation.batchId,
+          holdId: reservation.holdId,
+        }),
+        payablePaise: pricing.payablePaise,
+        totalPaise: pricing.totalPaise,
+        currency: 'INR',
+        checkoutTokenHash: hashToken(checkoutToken),
+        paymentStatus: 'processing',
+        holdExpiresAt,
+        batchId: reservation.batchId,
+        holdId: reservation.holdId,
+        emailStatus: 'not_configured',
+        updatedAt: new Date(),
+      })
+      .returning();
 
     const row = inserted[0];
     if (!row) throw new Error('Failed to create booking');
 
-    const {
-      normalizeParticipantsInput,
-      replaceBookingParticipants,
-    } = await import('@/lib/bookings/participants');
-    const normalized = normalizeParticipantsInput(input.participants, persons);
-
+    // Payment tx requires booking FK — run after insert, still parallel with attach/participants.
     const [txRow] = await Promise.all([
       db
         .insert(paymentTransactions)
@@ -404,7 +400,17 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
           updatedAt: new Date(),
         })
         .returning()
-        .then((rows) => rows[0]),
+        .then((rows) => rows[0])
+        .catch(async (err) => {
+          // Concurrent insert on same idempotency key — return the winner.
+          const [winner] = await db
+            .select()
+            .from(paymentTransactions)
+            .where(eq(paymentTransactions.idempotencyKey, idempotencyKey))
+            .limit(1);
+          if (winner) return winner;
+          throw err;
+        }),
       attachHoldToBooking(reservation.holdId, row.id, reservation.batchId),
       replaceBookingParticipants(row.id, normalized),
     ]);
@@ -443,10 +449,12 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
       }),
     };
   } catch (err) {
-    try {
-      await releaseHold(reservation.holdId, 'cancelled');
-    } catch {
-      /* best-effort */
+    if (reservation) {
+      try {
+        await releaseHold(reservation.holdId, 'cancelled');
+      } catch {
+        /* best-effort */
+      }
     }
     try {
       await db
@@ -483,7 +491,6 @@ export async function abandonUnpaidCheckout(opts: {
 
   if (booking.holdId) {
     try {
-      const { releaseHold } = await import('@/lib/inventory/service');
       await releaseHold(booking.holdId, 'cancelled');
     } catch {
       /* best-effort */
@@ -590,7 +597,6 @@ export async function assertBookingPayable(
       .where(eq(bookings.id, booking.id));
     if (booking.holdId) {
       try {
-        const { releaseHold } = await import('@/lib/inventory/service');
         await releaseHold(booking.holdId, 'expired');
       } catch {
         /* ignore */
