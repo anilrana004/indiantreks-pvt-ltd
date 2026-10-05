@@ -329,3 +329,34 @@ section .container h2 {
   box-shadow: var(--ih-shadow-soft);
 }
 
+/*
+  Site chrome hide/show — keep transform/transition in CSS (not inline styles).
+  Browsers rewrite inline transform/transition on SSR HTML (0 → 0px, shorthand →
+  longhand), which triggers React hydration mismatches. Extensions may also
+  inject top / data-* on fixed headers; components use suppressHydrationWarning.
+*/
+.it-site-header--desk {
+  transform: translateY(0%);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.it-site-header--desk.is-hidden {
+  transform: translateY(-110%);
+}
+.it-site-header--mob {
+  transform: translateY(0%);
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.it-site-header--mob.is-hidden {
+  transform: translateY(-110%);
+  opacity: 0;
+  pointer-events: none;
+}
+

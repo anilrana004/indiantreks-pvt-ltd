@@ -138,7 +138,7 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState<string[]>([]);
   const [mobileAccordion, setMobileAccordion] = useState<number | null>(null);
   /** 0 = in-flow green chrome, 1 = sticky bar visible (homepage only) */
-  const [navSolid, setNavSolid] = useState(0);
+  const [navSolid, setNavSolid] = useState(() => (pathname === '/' ? 0 : 1));
   /** Homepage scroll — drives sticky header wash → white blend */
   const [homeScrollY, setHomeScrollY] = useState(0);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -358,13 +358,10 @@ export default function Header() {
       {/* Desktop: compact dark-green chrome. Fixed + reserved spacer = no overlap.
           Hide on scroll-down / show on scroll-up (Roopkund Heaven pattern). */}
       <header
-        className="fixed left-0 top-0 z-50 hidden w-full overflow-visible lg:block"
-        style={{
-          height: DESK_HEADER_H,
-          transform: hidden ? 'translateY(-110%)' : 'translateY(0)',
-          transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
-          willChange: 'transform',
-        }}
+        className={`it-site-header it-site-header--desk fixed left-0 top-0 z-50 hidden w-full overflow-visible lg:block${hidden ? ' is-hidden' : ''}`}
+        style={{ height: `${DESK_HEADER_H}px` }}
+        // Extensions (env banners) inject top / data-* on fixed headers — ignore those attrs.
+        suppressHydrationWarning
       >
         {/* Top utility strip — contact left, quick links right */}
         <div
@@ -531,7 +528,7 @@ export default function Header() {
         <div
           aria-hidden
           className="hidden shrink-0 lg:block"
-          style={{ height: DESK_HEADER_H }}
+          style={{ height: `${DESK_HEADER_H}px` }}
         />
       )}
 
@@ -541,18 +538,14 @@ export default function Header() {
         - After scroll (and all other pages): solid white sticky bar
       */}
       <header
-        className={`fixed left-0 top-0 w-full lg:hidden ${isOpen ? 'z-[70]' : 'z-50'}`}
+        className={`it-site-header it-site-header--mob fixed left-0 top-0 w-full lg:hidden ${isOpen ? 'z-[70]' : 'z-50'}${showFixedMobile && !hidden ? '' : ' is-hidden'}`}
         style={{
           backgroundColor: showFixedMobile ? mobileHeaderBg : 'transparent',
           boxShadow: showFixedMobile ? mobileHeaderShadow : 'none',
           borderBottom: showFixedMobile ? mobileHeaderBorder : 'none',
           paddingTop: 'env(safe-area-inset-top, 0px)',
-          transform: showFixedMobile && !hidden ? 'translateY(0)' : 'translateY(-110%)',
-          opacity: showFixedMobile && !hidden ? 1 : 0,
-          pointerEvents: showFixedMobile && !hidden ? 'auto' : 'none',
-          transition:
-            'transform 0.28s cubic-bezier(0.22,1,0.36,1), opacity 0.22s ease, background-color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
         }}
+        suppressHydrationWarning
       >
         <div className="flex h-14 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => { if (isOpen) setIsOpen(false); }}>

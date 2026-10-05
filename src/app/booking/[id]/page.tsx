@@ -48,10 +48,6 @@ export default async function BookingPage({
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
         data-razorpay-checkout="1"
-        onLoad={() => {
-          const el = document.querySelector<HTMLScriptElement>('script[data-razorpay-checkout]');
-          if (el) el.dataset.ready = '1';
-        }}
       />
       <BookingCheckoutClient trek={trek} />
     </>

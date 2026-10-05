@@ -366,13 +366,9 @@ export default function HeaderTiered() {
     <div ref={headerRef}>
       {/* Desktop: two-tier white navbar (ANFM-style) — see header-nav.css */}
       <header
-        className="it-desk-header fixed left-0 top-0 z-50 hidden w-full overflow-visible lg:block"
-        style={{
-          height: DESK_HEADER_H,
-          transform: hidden ? 'translateY(-110%)' : 'translateY(0)',
-          transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
-          willChange: 'transform',
-        }}
+        className={`it-desk-header it-site-header it-site-header--desk fixed left-0 top-0 z-50 hidden w-full overflow-visible lg:block${hidden ? ' is-hidden' : ''}`}
+        style={{ height: `${DESK_HEADER_H}px` }}
+        suppressHydrationWarning
       >
         <div className="it-desk-header__top">
           <Link href="/" className="it-desk-header__logo" aria-label="Indian Treks home">
