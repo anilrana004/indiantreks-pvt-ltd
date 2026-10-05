@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
       notes: String(body.notes || ''),
       pickup: String(body.pickup || ''),
       participants: Array.isArray(body.participants) ? body.participants : [],
+      user,
     });
 
     return NextResponse.json(result, { status: 201 });

@@ -248,7 +248,7 @@ function BookingContent({ trek }: { trek: Trek }) {
     };
   }, []);
 
-  // Prefetch login for guests. Load Razorpay SDK only when user reaches Confirm (payment step).
+  // Prefetch login for guests. Warm Razorpay as soon as the user is on details/confirm.
   useEffect(() => {
     if (authStatus === 'guest') {
       try {
@@ -260,7 +260,7 @@ function BookingContent({ trek }: { trek: Trek }) {
   }, [authStatus, router]);
 
   useEffect(() => {
-    if (step === 3 && authStatus === 'signed_in') {
+    if (step >= 2 && authStatus === 'signed_in') {
       preloadRazorpayCheckout();
     }
   }, [step, authStatus]);
@@ -345,7 +345,6 @@ function BookingContent({ trek }: { trek: Trek }) {
       /* ignore */
     }
 
-    await ensureRazorpayReady();
     await openRazorpayCheckout(order, {
       onSuccess: async (response) => {
         try {

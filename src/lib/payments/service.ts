@@ -1,6 +1,11 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '@/lib/db';
+import {
+  assertBookingStatusTransition,
+  assertPaymentStatusTransition,
+} from '@/lib/bookings/state-machine';
 import { getCurrentUser } from '@/lib/user-auth/auth';
+import type { PublicUser } from '@/lib/user-auth/types';
 import type {
   BookingPayment,
   BookingPaymentStatus,
@@ -56,6 +61,8 @@ export type CheckoutBookingInput = CheckoutPricingInput & {
   notes?: string;
   pickup?: string;
   participants?: CheckoutParticipant[];
+  /** When provided by an authenticated route, skips a second getCurrentUser DB hit. */
+  user?: PublicUser;
 };
 
 export async function createCheckoutBooking(input: CheckoutBookingInput) {
@@ -63,7 +70,7 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
     throw new Error('Razorpay is not configured');
   }
 
-  const user = await getCurrentUser();
+  const user = input.user ?? (await getCurrentUser());
   if (!user) {
     throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
   }
@@ -163,14 +170,17 @@ export async function createCheckoutBooking(input: CheckoutBookingInput) {
       .returning();
     row = inserted[0];
     if (!row) throw new Error('Failed to create booking');
-    await attachHoldToBooking(reservation.holdId, row.id, reservation.batchId);
 
     const {
       normalizeParticipantsInput,
       replaceBookingParticipants,
     } = await import('@/lib/bookings/participants');
     const normalized = normalizeParticipantsInput(input.participants, persons);
-    await replaceBookingParticipants(row.id, normalized);
+    // Hold link + participants are independent after insert.
+    await Promise.all([
+      attachHoldToBooking(reservation.holdId, row.id, reservation.batchId),
+      replaceBookingParticipants(row.id, normalized),
+    ]);
   } catch (err) {
     try {
       await releaseHold(reservation.holdId, 'cancelled');
@@ -237,8 +247,12 @@ function isTrustedCheckoutBooking(booking: NonNullable<Awaited<ReturnType<typeof
   }
 }
 
-export async function assertBookingPayable(bookingId: string, checkoutToken: string) {
-  const user = await getCurrentUser();
+export async function assertBookingPayable(
+  bookingId: string,
+  checkoutToken: string,
+  opts?: { user?: PublicUser; skipHoldCheck?: boolean },
+) {
+  const user = opts?.user ?? (await getCurrentUser());
   if (!user) {
     throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
   }
@@ -294,7 +308,7 @@ export async function assertBookingPayable(bookingId: string, checkoutToken: str
     throw Object.assign(new Error('Booking payment window expired'), { status: 409 });
   }
 
-  if (booking.holdId) {
+  if (!opts?.skipHoldCheck && booking.holdId) {
     const { schema: dbSchema, getDb: gdb } = await import('@/lib/db');
     const db = gdb();
     if (db) {
@@ -349,33 +363,57 @@ function orderResponseFromTx(
 export async function createRazorpayOrderForBooking(
   bookingId: string,
   checkoutToken: string,
-  opts?: { idempotencyKey?: string },
+  opts?: { idempotencyKey?: string; user?: PublicUser; freshCheckout?: boolean },
 ) {
-  const booking = await assertBookingPayable(bookingId, checkoutToken);
   const db = requireDb();
+  const freshUser = opts?.freshCheckout ? opts.user : undefined;
+
+  // Standalone create-order keeps full assert; same-request pay verifies under the row lock.
+  const prechecked =
+    freshUser
+      ? null
+      : await assertBookingPayable(bookingId, checkoutToken, { user: opts?.user });
+
+  const targetId = prechecked?.id || bookingId;
   const idempotencyKey =
-    opts?.idempotencyKey?.trim() || `order:${booking.id}:${booking.payablePaise}`;
+    opts?.idempotencyKey?.trim() ||
+    (prechecked
+      ? `order:${prechecked.id}:${prechecked.payablePaise}`
+      : `order:${bookingId}`);
 
   // Lock booking row + reuse open order / idempotency key before calling Razorpay.
   const locked = await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
       .from(bookings)
-      .where(eq(bookings.id, booking.id))
+      .where(eq(bookings.id, targetId))
       .for('update')
       .limit(1);
 
     if (!row) throw Object.assign(new Error('Booking not found'), { status: 404 });
+
+    if (freshUser) {
+      if (!isTrustedCheckoutBooking(row)) {
+        throw Object.assign(new Error('Booking is not eligible for payment'), { status: 403 });
+      }
+      if (row.userId !== freshUser.id) {
+        throw Object.assign(new Error('Forbidden'), { status: 403 });
+      }
+      if (!verifyCheckoutToken(checkoutToken, row.checkoutTokenHash)) {
+        throw Object.assign(new Error('Forbidden'), { status: 403 });
+      }
+      if (!row.payablePaise || row.payablePaise < 100) {
+        throw Object.assign(new Error('Invalid booking amount'), { status: 400 });
+      }
+    }
+
     if (row.status === 'confirmed' || row.paymentStatus === 'paid') {
       throw Object.assign(new Error('Booking already paid'), { status: 409 });
     }
     if (row.holdExpiresAt && row.holdExpiresAt.getTime() < Date.now()) {
-      const { assertBookingStatusTransition, assertPaymentStatusTransition } = await import(
-        '@/lib/bookings/state-machine'
-      );
-      assertBookingStatusTransition(row.status as import('@/lib/operations/types').BookingStatus, 'expired');
+      assertBookingStatusTransition(row.status as BookingStatus, 'expired');
       assertPaymentStatusTransition(
-        (row.paymentStatus || 'unpaid') as import('@/lib/operations/types').BookingPaymentStatus,
+        (row.paymentStatus || 'unpaid') as BookingPaymentStatus,
         'failed',
       );
       await tx
@@ -410,15 +448,9 @@ export async function createRazorpayOrderForBooking(
       return { kind: 'reuse' as const, booking: row, tx: existing };
     }
 
-    const { assertBookingStatusTransition, assertPaymentStatusTransition } = await import(
-      '@/lib/bookings/state-machine'
-    );
-    assertBookingStatusTransition(
-      row.status as import('@/lib/operations/types').BookingStatus,
-      'payment_processing',
-    );
+    assertBookingStatusTransition(row.status as BookingStatus, 'payment_processing');
     assertPaymentStatusTransition(
-      (row.paymentStatus || 'unpaid') as import('@/lib/operations/types').BookingPaymentStatus,
+      (row.paymentStatus || 'unpaid') as BookingPaymentStatus,
       'processing',
     );
 
@@ -435,8 +467,10 @@ export async function createRazorpayOrderForBooking(
   });
 
   if (locked.kind === 'create') {
-    try {
-      await requireDb().insert(schema.bookingStatusHistory).values({
+    // History is best-effort — never block Razorpay order creation.
+    void requireDb()
+      .insert(schema.bookingStatusHistory)
+      .values({
         bookingId: locked.booking.id,
         fromStatus: locked.booking.status,
         toStatus: 'payment_processing',
@@ -444,10 +478,10 @@ export async function createRazorpayOrderForBooking(
         toPaymentStatus: 'processing',
         reason: 'razorpay_order_create',
         actor: 'payments',
+      })
+      .catch(() => {
+        /* history best-effort */
       });
-    } catch {
-      /* history best-effort */
-    }
   }
 
   if (locked.kind === 'reuse') {

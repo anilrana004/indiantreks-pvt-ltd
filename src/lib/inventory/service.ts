@@ -278,16 +278,13 @@ export async function reserveInventory(input: {
 }
 
 /** Attach booking id to an existing hold (after booking row insert). */
-export async function attachHoldToBooking(holdId: string, bookingId: string, batchId: string) {
+export async function attachHoldToBooking(holdId: string, bookingId: string, _batchId?: string) {
   const db = requireDb();
+  // Booking insert already stores holdId/batchId — only link the hold row.
   await db
     .update(bookingHolds)
     .set({ bookingId, updatedAt: new Date() })
     .where(and(eq(bookingHolds.id, holdId), eq(bookingHolds.status, 'active')));
-  await db
-    .update(bookings)
-    .set({ holdId, batchId, updatedAt: new Date() })
-    .where(eq(bookings.id, bookingId));
 }
 
 /**

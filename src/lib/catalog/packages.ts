@@ -190,19 +190,28 @@ export async function listActivePackagesForTrek(trekId: string): Promise<DbPacka
   return ensureTrekPackages(trekId);
 }
 
+/** Hot-path package lookup — no catalog seed. Falls back to null → catalog pricing. */
 export async function findActivePackage(
   trekId: string,
   packageNameOrKey: string,
 ): Promise<DbPackage | null> {
-  const packages = await ensureTrekPackages(trekId);
+  const db = requireDb();
   const key = packageKeyFromName(packageNameOrKey);
+  const rows = await db
+    .select()
+    .from(trekPackages)
+    .where(and(eq(trekPackages.trekId, trekId), eq(trekPackages.status, 'active')))
+    .orderBy(asc(trekPackages.sortOrder), asc(trekPackages.name));
+
+  const valid = rows.filter((r) => isCurrentlyValid(r));
+  if (!valid.length) return null;
+
   const exact =
-    packages.find((p) => p.packageKey === key) ||
-    packages.find((p) => p.name.toLowerCase() === packageNameOrKey.trim().toLowerCase());
-  if (exact) return exact;
-  // Lowest price active package as safe default (same as prior catalog behavior)
-  if (!packages.length) return null;
-  return [...packages].sort((a, b) => a.priceInr - b.priceInr)[0]!;
+    valid.find((p) => p.packageKey === key) ||
+    valid.find((p) => p.name.toLowerCase() === packageNameOrKey.trim().toLowerCase());
+  if (exact) return toDbPackage(exact);
+
+  return toDbPackage([...valid].sort((a, b) => a.priceInr - b.priceInr)[0]!);
 }
 
 export type PackagePriceUpdate = {

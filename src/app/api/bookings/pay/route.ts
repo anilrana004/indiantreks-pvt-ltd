@@ -33,22 +33,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const abuse = await checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req));
+  // IP abuse check + session user lookup are independent — run together.
+  const [abuse, user] = await Promise.all([
+    checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
+    getCurrentUser(),
+  ]);
   if (!abuse.allowed) {
     return rateLimitedResponse(abuse.retryAfterSec);
   }
-
-  const user = await getCurrentUser();
   if (!user) {
     return unauthorizedUserResponse();
   }
 
-  const checkoutLimited = await checkUserRateLimit(CHECKOUT_LIMIT, user.id);
+  const [checkoutLimited, orderLimited] = await Promise.all([
+    checkUserRateLimit(CHECKOUT_LIMIT, user.id),
+    checkUserRateLimit(PAYMENT_ORDER_LIMIT, user.id),
+  ]);
   if (!checkoutLimited.allowed) {
     return rateLimitedResponse(checkoutLimited.retryAfterSec);
   }
-
-  const orderLimited = await checkUserRateLimit(PAYMENT_ORDER_LIMIT, user.id);
   if (!orderLimited.allowed) {
     return rateLimitedResponse(orderLimited.retryAfterSec);
   }
@@ -82,6 +85,7 @@ export async function POST(req: NextRequest) {
       notes: String(body.notes || ''),
       pickup: String(body.pickup || ''),
       participants: Array.isArray(body.participants) ? body.participants : [],
+      user,
     });
 
     const order = await createRazorpayOrderForBooking(
@@ -90,6 +94,8 @@ export async function POST(req: NextRequest) {
       {
         idempotencyKey:
           req.headers.get('idempotency-key')?.trim() || `order:${checkout.bookingId}`,
+        user,
+        freshCheckout: true,
       },
     );
 

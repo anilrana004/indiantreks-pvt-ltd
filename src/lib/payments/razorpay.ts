@@ -31,11 +31,16 @@ export function isRazorpayConfigured(): boolean {
   return Boolean(process.env.RAZORPAY_KEY_ID?.trim() && process.env.RAZORPAY_KEY_SECRET?.trim());
 }
 
+let razorpayClient: Razorpay | null = null;
+
 export function getRazorpayClient(): Razorpay {
-  return new Razorpay({
-    key_id: getRazorpayKeyId(),
-    key_secret: getRazorpayKeySecret(),
-  });
+  if (!razorpayClient) {
+    razorpayClient = new Razorpay({
+      key_id: getRazorpayKeyId(),
+      key_secret: getRazorpayKeySecret(),
+    });
+  }
+  return razorpayClient;
 }
 
 export function rupeesToPaise(rupees: number): number {
