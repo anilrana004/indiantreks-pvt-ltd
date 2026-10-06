@@ -97,6 +97,8 @@ export default function Hero() {
   useEffect(() => { if (showSearch) setTimeout(() => searchRef.current?.focus(), 100); }, [showSearch]);
 
   const bannerTouchX = useRef(0);
+  const bannerTouchY = useRef(0);
+  const bannerTouchAt = useRef(0);
   const bannerPaused = useRef(false);
   const bannerSwiped = useRef(false);
   const MOB_VIDEO_MAX_SEC = 15;
@@ -108,6 +110,30 @@ export default function Hero() {
     setMobVideoReady(false);
     setMobSlide(next);
   }, []);
+
+  const onBannerPointerDown = useCallback((x: number, y: number) => {
+    bannerTouchX.current = x;
+    bannerTouchY.current = y;
+    bannerTouchAt.current = Date.now();
+    bannerSwiped.current = false;
+  }, []);
+
+  const onBannerPointerUp = useCallback((x: number, y: number) => {
+    const dx = x - bannerTouchX.current;
+    const dy = y - bannerTouchY.current;
+    const dt = Math.max(1, Date.now() - bannerTouchAt.current);
+    // Prefer horizontal intent: ignore mostly-vertical scrolls.
+    if (Math.abs(dx) < 28 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+    const velocity = Math.abs(dx) / dt;
+    if (Math.abs(dx) < 48 && velocity < 0.35) return;
+    bannerSwiped.current = true;
+    // Swipe left → next; swipe right → previous.
+    goMobBanner((p) =>
+      dx < 0
+        ? (p + 1) % mobBanners.length
+        : (p - 1 + mobBanners.length) % mobBanners.length,
+    );
+  }, [goMobBanner]);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -200,16 +226,6 @@ export default function Hero() {
     </section>
   );
 
-  const onBannerTouchStart = (x: number) => { bannerTouchX.current = x; };
-  const onBannerTouchEnd = (x: number) => {
-    const dx = x - bannerTouchX.current;
-    if (Math.abs(dx) < 40) return;
-    bannerSwiped.current = true;
-    goMobBanner(p => dx < 0
-      ? (p + 1) % mobBanners.length
-      : (p - 1 + mobBanners.length) % mobBanners.length);
-  };
-
   /* ======================== MOBILE LAYOUT ======================== */
   const mobile = (
     <section
@@ -289,17 +305,30 @@ export default function Hero() {
         </div>
 
         <div
-          className="relative mt-3 overflow-hidden rounded-[22px] bg-[#14532d] shadow-[0_10px_28px_rgba(20,83,45,0.28)]"
-          onTouchStart={e => onBannerTouchStart(e.touches[0].clientX)}
-          onTouchEnd={e => onBannerTouchEnd(e.changedTouches[0].clientX)}
+          className="relative mt-3 select-none overflow-hidden rounded-[22px] bg-[#14532d] shadow-[0_10px_28px_rgba(20,83,45,0.28)] touch-pan-y"
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            onBannerPointerDown(t.clientX, t.clientY);
+          }}
+          onTouchEnd={(e) => {
+            const t = e.changedTouches[0];
+            onBannerPointerUp(t.clientX, t.clientY);
+          }}
+          onPointerDown={(e) => {
+            if (e.pointerType === 'mouse') onBannerPointerDown(e.clientX, e.clientY);
+          }}
+          onPointerUp={(e) => {
+            if (e.pointerType === 'mouse') onBannerPointerUp(e.clientX, e.clientY);
+          }}
         >
           <div className="relative h-[188px]">
             {mobBanners.map((slide, i) => (
               <Link
                 key={`${slide.href}-${slide.title}-${i}`}
                 href={slide.href}
-                className={`absolute inset-0 block transition-opacity duration-500 ${i === mobSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
-                onClick={e => {
+                draggable={false}
+                className={`absolute inset-0 block transition-opacity duration-300 ease-out ${i === mobSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+                onClick={(e) => {
                   if (bannerSwiped.current) {
                     e.preventDefault();
                     bannerSwiped.current = false;
@@ -310,7 +339,7 @@ export default function Hero() {
                 {i === mobSlide ? (
                   <video
                     key={`mob-vid-${i}`}
-                    className={`absolute inset-0 h-full w-full object-cover bg-[#14532d] transition-opacity duration-200 ${mobVideoReady ? 'opacity-100' : 'opacity-0'}`}
+                    className={`pointer-events-none absolute inset-0 h-full w-full object-cover bg-[#14532d] transition-opacity duration-200 ${mobVideoReady ? 'opacity-100' : 'opacity-0'}`}
                     autoPlay
                     muted
                     playsInline
@@ -330,15 +359,15 @@ export default function Hero() {
                 ) : (
                   <div className="absolute inset-0 bg-[#14532d]" aria-hidden />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 flex flex-col items-start px-3.5 pb-3.5 pt-10">
-                  <h2 className="max-w-[85%] text-[15px] font-semibold tracking-[-0.01em] leading-[1.15] text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-black/70 via-black/20 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex w-[58%] flex-col items-end justify-end px-3.5 pb-3.5 pt-8 text-right">
+                  <h2 className="text-[14px] font-semibold tracking-[-0.01em] leading-tight text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.5)]">
                     {slide.title}
                   </h2>
-                  <p className="mt-1 max-w-[90%] text-[10.5px] font-medium leading-[1.35] text-white/80 line-clamp-2">
+                  <p className="mt-0.5 text-[10px] font-medium leading-snug text-white/80">
                     {slide.subtitle}
                   </p>
-                  <span className="it-hero-mob-cta mt-2">
+                  <span className="it-hero-mob-cta mt-1.5">
                     {slide.cta}
                     <ArrowRight className="h-3 w-3" />
                   </span>

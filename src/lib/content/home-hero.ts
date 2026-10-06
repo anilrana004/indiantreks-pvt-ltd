@@ -55,33 +55,33 @@ export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
   {
     video:
       'https://media.indiantreks.in/indian%20treks/winter%20banner/himachal%20paredsh/From%20Klickpin.com-%20Stylish%20side%20hustle%20ideas%20that%20feel%20fresh%20elevated%20and%20surprisingly%20easy%20to%20recreate%20at%20home%20for%20busy%20people%20who%20still%20want%20gor.mp4',
-    title: 'Himachal Adventures',
-    subtitle: 'Hampta Pass – Triund – Bhrigu Lake & more',
-    cta: 'Explore Himachal',
+    title: 'Himachal',
+    subtitle: 'Treks & trails',
+    cta: 'Explore',
     href: '/treks?region=himachal',
   },
   {
     video:
       'https://media.indiantreks.in/indian%20treks/winter%20banner/uttarakhnad/From%20Klickpin.com-%20Fresh%20declutter%20motivation%20this%20season%20with%20simple%20charm%20and%20practical%20value%20for%20real%20life%20days-pin-id-1000080661007340684.mp4',
-    title: 'Uttarakhand Adventure',
-    subtitle: 'Chopta – Kedarkantha – Valley of Flowers & more',
-    cta: 'Explore Treks',
+    title: 'Uttarakhand',
+    subtitle: 'Himalayan treks',
+    cta: 'Explore',
     href: '/treks?region=uttarakhand',
   },
   {
     video:
       'https://media.indiantreks.in/indian%20treks/winter%20banner/kedarkantha/videoplayback%20(1).mp4',
-    title: 'Kedarkantha Trek',
-    subtitle: 'Queen of winter treks — snow forests & 360° summit sunrise',
-    cta: 'Explore Trek',
+    title: 'Kedarkantha',
+    subtitle: 'Winter trek',
+    cta: 'Explore',
     href: '/treks/kedarkantha',
   },
   {
     video:
       'https://media.indiantreks.in/indian%20treks/winter%20banner/choptatungnath/From%20Klickpin.com-%20Recreate%20these%20beautiful%20ways%20to%20style%20your%20reading%20nook%20that%20help%20you%20get%20the%20look%20without%20the%20stress%20with%20beginner-friendly%20t.mp4',
-    title: 'Chopta Tungnath Chandrashila',
-    subtitle: 'Highest Shiva temple & Chandrashila summit — short Garhwal escape',
-    cta: 'Explore Trek',
+    title: 'Chopta Tungnath',
+    subtitle: 'Chandrashila',
+    cta: 'Explore',
     href: '/treks/chopta-tungnath',
   },
 ];
