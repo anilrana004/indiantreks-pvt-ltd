@@ -25,8 +25,9 @@ import {
 import { photos } from '@/lib/media';
 
 export type HeroMobileBanner = {
-  image: string;
-  /** Optional looping background video (phone hero). Image used as poster/fallback. */
+  /** Still image for non-video slides. Omit when `video` is set — never used as poster. */
+  image?: string;
+  /** Optional looping/clipped background video (phone hero). No poster/preview image. */
   video?: string;
   title: string;
   subtitle: string;
@@ -54,7 +55,6 @@ export type HeroDesktopSlide = {
 export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
   { image: photos.himachal, title: 'Himachal Adventures', subtitle: 'Hampta Pass – Triund – Bhrigu Lake & more', cta: 'Explore Himachal', href: '/treks?region=himachal' },
   {
-    image: photos.kedarkantha,
     video:
       'https://media.indiantreks.in/indian%20treks/winter%20banner/kedarkantha/videoplayback%20(1).mp4',
     title: 'Kedarkantha Trek',

@@ -100,10 +100,12 @@ export default function Hero() {
   const bannerPaused = useRef(false);
   const bannerSwiped = useRef(false);
   const MOB_VIDEO_MAX_SEC = 15;
+  const [mobVideoReady, setMobVideoReady] = useState(false);
 
   const goMobBanner = useCallback((next: number | ((prev: number) => number), pauseMs = 8000) => {
     bannerPaused.current = true;
     window.setTimeout(() => { bannerPaused.current = false; }, pauseMs);
+    setMobVideoReady(false);
     setMobSlide(next);
   }, []);
 
@@ -319,12 +321,14 @@ export default function Hero() {
                   i === mobSlide ? (
                     <video
                       key={`mob-vid-${i}`}
-                      className="absolute inset-0 h-full w-full object-cover bg-[#14532d]"
+                      className={`absolute inset-0 h-full w-full object-cover bg-[#14532d] transition-opacity duration-200 ${mobVideoReady ? 'opacity-100' : 'opacity-0'}`}
                       autoPlay
                       muted
                       playsInline
                       preload="auto"
+                      poster=""
                       aria-label={slide.title}
+                      onPlaying={() => setMobVideoReady(true)}
                       onTimeUpdate={(e) => {
                         if (e.currentTarget.currentTime < MOB_VIDEO_MAX_SEC) return;
                         e.currentTarget.pause();
@@ -337,7 +341,7 @@ export default function Hero() {
                   ) : (
                     <div className="absolute inset-0 bg-[#14532d]" aria-hidden />
                   )
-                ) : (
+                ) : slide.image ? (
                   <Image
                     src={slide.image}
                     alt={slide.title}
@@ -347,6 +351,8 @@ export default function Hero() {
                     referrerPolicy="no-referrer"
                     className="object-cover"
                   />
+                ) : (
+                  <div className="absolute inset-0 bg-[#14532d]" aria-hidden />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
                 <div className="absolute inset-0 flex flex-col justify-end p-4 pb-8">
