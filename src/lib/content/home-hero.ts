@@ -76,6 +76,14 @@ export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
     cta: 'Explore Trek',
     href: '/treks/kedarkantha',
   },
+  {
+    video:
+      'https://media.indiantreks.in/indian%20treks/winter%20banner/choptatungnath/From%20Klickpin.com-%20Recreate%20these%20beautiful%20ways%20to%20style%20your%20reading%20nook%20that%20help%20you%20get%20the%20look%20without%20the%20stress%20with%20beginner-friendly%20t.mp4',
+    title: 'Chopta Tungnath Chandrashila',
+    subtitle: 'Highest Shiva temple & Chandrashila summit — short Garhwal escape',
+    cta: 'Explore Trek',
+    href: '/treks/chopta-tungnath',
+  },
 ];
 
 /** Phone hero explore strip — same designed creatives as desktop explore. */
