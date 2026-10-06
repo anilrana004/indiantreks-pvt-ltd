@@ -109,16 +109,6 @@ export default function Hero() {
     setMobSlide(next);
   }, []);
 
-  /* -- timers -- */
-  // Image slides auto-advance; video slides advance after ~15s via onTimeUpdate.
-  useEffect(() => {
-    if (mobBanners[mobSlide]?.video) return;
-    const t = setInterval(() => {
-      if (bannerPaused.current) return;
-      setMobSlide(p => (p + 1) % mobBanners.length);
-    }, 4500);
-    return () => clearInterval(t);
-  }, [mobSlide]);
   useEffect(() => {
     const t = setInterval(() => {
       setCollabFade(false);
@@ -317,40 +307,26 @@ export default function Hero() {
                 }}
                 tabIndex={i === mobSlide ? 0 : -1}
               >
-                {slide.video ? (
-                  i === mobSlide ? (
-                    <video
-                      key={`mob-vid-${i}`}
-                      className={`absolute inset-0 h-full w-full object-cover bg-[#14532d] transition-opacity duration-200 ${mobVideoReady ? 'opacity-100' : 'opacity-0'}`}
-                      autoPlay
-                      muted
-                      playsInline
-                      preload="auto"
-                      poster=""
-                      aria-label={slide.title}
-                      onPlaying={() => setMobVideoReady(true)}
-                      onTimeUpdate={(e) => {
-                        if (e.currentTarget.currentTime < MOB_VIDEO_MAX_SEC) return;
-                        e.currentTarget.pause();
-                        goMobBanner((p) => (p + 1) % mobBanners.length, 500);
-                      }}
-                      onEnded={() => goMobBanner((p) => (p + 1) % mobBanners.length, 500)}
-                    >
-                      <source src={slide.video} type="video/mp4" />
-                    </video>
-                  ) : (
-                    <div className="absolute inset-0 bg-[#14532d]" aria-hidden />
-                  )
-                ) : slide.image ? (
-                  <Image
-                    src={slide.image}
-                    alt={slide.title}
-                    fill
-                    priority={i === 0}
-                    sizes="100vw"
-                    referrerPolicy="no-referrer"
-                    className="object-cover"
-                  />
+                {i === mobSlide ? (
+                  <video
+                    key={`mob-vid-${i}`}
+                    className={`absolute inset-0 h-full w-full object-cover bg-[#14532d] transition-opacity duration-200 ${mobVideoReady ? 'opacity-100' : 'opacity-0'}`}
+                    autoPlay
+                    muted
+                    playsInline
+                    preload="auto"
+                    poster=""
+                    aria-label={slide.title}
+                    onPlaying={() => setMobVideoReady(true)}
+                    onTimeUpdate={(e) => {
+                      if (e.currentTarget.currentTime < MOB_VIDEO_MAX_SEC) return;
+                      e.currentTarget.pause();
+                      goMobBanner((p) => (p + 1) % mobBanners.length, 500);
+                    }}
+                    onEnded={() => goMobBanner((p) => (p + 1) % mobBanners.length, 500)}
+                  >
+                    <source src={slide.video} type="video/mp4" />
+                  </video>
                 ) : (
                   <div className="absolute inset-0 bg-[#14532d]" aria-hidden />
                 )}

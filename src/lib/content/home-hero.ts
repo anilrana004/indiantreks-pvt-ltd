@@ -25,10 +25,8 @@ import {
 import { photos } from '@/lib/media';
 
 export type HeroMobileBanner = {
-  /** Still image for non-video slides. Omit when `video` is set — never used as poster. */
-  image?: string;
-  /** Optional looping/clipped background video (phone hero). No poster/preview image. */
-  video?: string;
+  /** Phone hero media — video only, no poster / preview image. */
+  video: string;
   title: string;
   subtitle: string;
   cta: string;
@@ -52,8 +50,24 @@ export type HeroDesktopSlide = {
   group: string;
 };
 
+/** Phone hero carousel — video slides only (no still/preview images). */
 export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
-  { image: photos.himachal, title: 'Himachal Adventures', subtitle: 'Hampta Pass – Triund – Bhrigu Lake & more', cta: 'Explore Himachal', href: '/treks?region=himachal' },
+  {
+    video:
+      'https://media.indiantreks.in/indian%20treks/winter%20banner/himachal%20paredsh/From%20Klickpin.com-%20Stylish%20side%20hustle%20ideas%20that%20feel%20fresh%20elevated%20and%20surprisingly%20easy%20to%20recreate%20at%20home%20for%20busy%20people%20who%20still%20want%20gor.mp4',
+    title: 'Himachal Adventures',
+    subtitle: 'Hampta Pass – Triund – Bhrigu Lake & more',
+    cta: 'Explore Himachal',
+    href: '/treks?region=himachal',
+  },
+  {
+    video:
+      'https://media.indiantreks.in/indian%20treks/winter%20banner/uttarakhnad/From%20Klickpin.com-%20Fresh%20declutter%20motivation%20this%20season%20with%20simple%20charm%20and%20practical%20value%20for%20real%20life%20days-pin-id-1000080661007340684.mp4',
+    title: 'Uttarakhand Adventure',
+    subtitle: 'Chopta – Kedarkantha – Valley of Flowers & more',
+    cta: 'Explore Treks',
+    href: '/treks?region=uttarakhand',
+  },
   {
     video:
       'https://media.indiantreks.in/indian%20treks/winter%20banner/kedarkantha/videoplayback%20(1).mp4',
@@ -62,8 +76,6 @@ export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
     cta: 'Explore Trek',
     href: '/treks/kedarkantha',
   },
-  { image: photos.yatra, title: 'Sacred Yatras', subtitle: 'Kedarnath – Do Dham – Char Dham – Panch Kedar', cta: 'Explore Yatras', href: '/yatra' },
-  { image: photos.nepal, title: 'International Expeditions', subtitle: 'EBC – Annapurna – Nepal Backpacking Circuit', cta: 'Explore Global', href: '/treks?region=nepal' },
 ];
 
 /** Phone hero explore strip — same designed creatives as desktop explore. */
