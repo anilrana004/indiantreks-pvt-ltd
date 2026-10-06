@@ -26,6 +26,8 @@ import { photos } from '@/lib/media';
 
 export type HeroMobileBanner = {
   image: string;
+  /** Optional looping background video (phone hero). Image used as poster/fallback. */
+  video?: string;
   title: string;
   subtitle: string;
   cta: string;
@@ -51,7 +53,15 @@ export type HeroDesktopSlide = {
 
 export const HERO_MOB_BANNERS: HeroMobileBanner[] = [
   { image: photos.himachal, title: 'Himachal Adventures', subtitle: 'Hampta Pass – Triund – Bhrigu Lake & more', cta: 'Explore Himachal', href: '/treks?region=himachal' },
-  { image: photos.uttarakhand, title: 'Uttarakhand Treks', subtitle: 'Chopta – Kedarkantha – Valley of Flowers & more', cta: 'Explore Treks', href: '/treks?region=uttarakhand' },
+  {
+    image: photos.kedarkantha,
+    video:
+      'https://media.indiantreks.in/indian%20treks/winter%20banner/kedarkantha/videoplayback%20(1).mp4',
+    title: 'Kedarkantha Trek',
+    subtitle: 'Queen of winter treks — snow forests & 360° summit sunrise',
+    cta: 'Explore Trek',
+    href: '/treks/kedarkantha',
+  },
   { image: photos.yatra, title: 'Sacred Yatras', subtitle: 'Kedarnath – Do Dham – Char Dham – Panch Kedar', cta: 'Explore Yatras', href: '/yatra' },
   { image: photos.nepal, title: 'International Expeditions', subtitle: 'EBC – Annapurna – Nepal Backpacking Circuit', cta: 'Explore Global', href: '/treks?region=nepal' },
 ];

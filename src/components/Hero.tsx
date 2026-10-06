@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Search, Star,
-  ArrowRight, Phone,
+  ArrowRight, Phone, ChevronLeft, ChevronRight,
   Mountain, SunMedium, X, Menu,
 } from 'lucide-react';
 import { treks } from '@/lib/data';
@@ -99,15 +99,24 @@ export default function Hero() {
   const bannerTouchX = useRef(0);
   const bannerPaused = useRef(false);
   const bannerSwiped = useRef(false);
+  const MOB_VIDEO_MAX_SEC = 15;
+
+  const goMobBanner = useCallback((next: number | ((prev: number) => number), pauseMs = 8000) => {
+    bannerPaused.current = true;
+    window.setTimeout(() => { bannerPaused.current = false; }, pauseMs);
+    setMobSlide(next);
+  }, []);
 
   /* -- timers -- */
+  // Image slides auto-advance; video slides advance after ~15s via onTimeUpdate.
   useEffect(() => {
+    if (mobBanners[mobSlide]?.video) return;
     const t = setInterval(() => {
       if (bannerPaused.current) return;
       setMobSlide(p => (p + 1) % mobBanners.length);
     }, 4500);
     return () => clearInterval(t);
-  }, []);
+  }, [mobSlide]);
   useEffect(() => {
     const t = setInterval(() => {
       setCollabFade(false);
@@ -204,9 +213,7 @@ export default function Hero() {
     const dx = x - bannerTouchX.current;
     if (Math.abs(dx) < 40) return;
     bannerSwiped.current = true;
-    bannerPaused.current = true;
-    window.setTimeout(() => { bannerPaused.current = false; }, 6000);
-    setMobSlide(p => dx < 0
+    goMobBanner(p => dx < 0
       ? (p + 1) % mobBanners.length
       : (p - 1 + mobBanners.length) % mobBanners.length);
   };
@@ -308,15 +315,39 @@ export default function Hero() {
                 }}
                 tabIndex={i === mobSlide ? 0 : -1}
               >
-                <Image
-                  src={slide.image}
-                  alt={slide.title}
-                  fill
-                  priority={i === 0}
-                  sizes="100vw"
-                  referrerPolicy="no-referrer"
-                  className="object-cover"
-                />
+                {slide.video ? (
+                  i === mobSlide ? (
+                    <video
+                      key={`mob-vid-${i}`}
+                      className="absolute inset-0 h-full w-full object-cover bg-[#14532d]"
+                      autoPlay
+                      muted
+                      playsInline
+                      preload="auto"
+                      aria-label={slide.title}
+                      onTimeUpdate={(e) => {
+                        if (e.currentTarget.currentTime < MOB_VIDEO_MAX_SEC) return;
+                        e.currentTarget.pause();
+                        goMobBanner((p) => (p + 1) % mobBanners.length, 500);
+                      }}
+                      onEnded={() => goMobBanner((p) => (p + 1) % mobBanners.length, 500)}
+                    >
+                      <source src={slide.video} type="video/mp4" />
+                    </video>
+                  ) : (
+                    <div className="absolute inset-0 bg-[#14532d]" aria-hidden />
+                  )
+                ) : (
+                  <Image
+                    src={slide.image}
+                    alt={slide.title}
+                    fill
+                    priority={i === 0}
+                    sizes="100vw"
+                    referrerPolicy="no-referrer"
+                    className="object-cover"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
                 <div className="absolute inset-0 flex flex-col justify-end p-4 pb-8">
                   <h2 className="text-[22px] font-bold leading-tight text-white drop-shadow-sm">{slide.title}</h2>
@@ -328,13 +359,39 @@ export default function Hero() {
               </Link>
             ))}
           </div>
+
+          <button
+            type="button"
+            aria-label="Previous banner"
+            className="absolute left-2 top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm active:scale-95"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              goMobBanner((p) => (p - 1 + mobBanners.length) % mobBanners.length);
+            }}
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="Next banner"
+            className="absolute right-2 top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm active:scale-95"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              goMobBanner((p) => (p + 1) % mobBanners.length);
+            }}
+          >
+            <ChevronRight className="h-5 w-5" aria-hidden />
+          </button>
+
           <div className="absolute bottom-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
             {mobBanners.map((_, i) => (
               <button
                 key={i}
                 type="button"
                 aria-label={`Show banner ${i + 1}`}
-                onClick={() => { bannerPaused.current = true; setMobSlide(i); }}
+                onClick={() => goMobBanner(i)}
                 className={`h-1.5 rounded-full transition-all ${i === mobSlide ? 'w-6 bg-[#16a34a]' : 'w-1.5 bg-white/60'}`}
               />
             ))}
