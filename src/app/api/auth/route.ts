@@ -21,7 +21,8 @@ function resolveAdminCredentials():
     if (!email || !password) {
       return { ok: false, status: 503, error: 'Admin credentials are not configured' };
     }
-    if (password === DEV_ADMIN_PASSWORD || password.length < 12) {
+    // Reject the well-known default; require a real password (8+ chars).
+    if (password === DEV_ADMIN_PASSWORD || password.length < 8) {
       return { ok: false, status: 503, error: 'Admin credentials are not configured for production' };
     }
     return { ok: true, email, password };

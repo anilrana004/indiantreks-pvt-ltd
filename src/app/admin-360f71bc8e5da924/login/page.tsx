@@ -42,7 +42,14 @@ export default function AdminLogin() {
             : ADMIN_PREFIX;
         router.push(destination);
       } else {
-        setError('Invalid email or password. Please try again.');
+        let message = 'Invalid email or password. Please try again.';
+        try {
+          const body = unwrapApiJson<{ error?: string }>(await res.json());
+          if (body.error?.trim()) message = body.error.trim();
+        } catch {
+          // keep default message
+        }
+        setError(message);
       }
     } catch {
       setError('Unable to connect. Check your network and try again.');
