@@ -47,11 +47,15 @@ export async function POST(req: Request) {
 
     const result = await authenticateWithPassword(parsed.data!.email, parsed.data!.password);
     if ('error' in result) {
-      await recordAuthEvent({
-        email: parsed.data!.email,
-        event: 'login_failed',
-        ...clientMeta(req),
-      });
+      try {
+        await recordAuthEvent({
+          email: parsed.data!.email,
+          event: 'login_failed',
+          ...clientMeta(req),
+        });
+      } catch {
+        // Audit must not block the auth response.
+      }
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
@@ -66,19 +70,33 @@ export async function POST(req: Request) {
     const response = NextResponse.json({ success: true, user: result.user });
     response.cookies.set(USER_COOKIE, token, userSessionCookieOptions());
 
-    await recordAuthEvent({
-      userId: result.user.id,
-      email: result.user.email,
-      event: 'login_success',
-      ...clientMeta(req),
-    });
+    try {
+      await recordAuthEvent({
+        userId: result.user.id,
+        email: result.user.email,
+        event: 'login_success',
+        ...clientMeta(req),
+      });
+    } catch {
+      // Audit must not block sign-in.
+    }
 
     return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    console.error('[user-auth/login]', message);
     if (message.includes('SESSION_SECRET') || message.includes('production')) {
       return NextResponse.json(
         { error: 'Authentication is not configured for production' },
+        { status: 503 },
+      );
+    }
+    if (/session_version|Failed query|does not exist/i.test(message)) {
+      return NextResponse.json(
+        {
+          error:
+            'Auth database is missing a required column. Run migration 0013_session_version.sql then retry.',
+        },
         { status: 503 },
       );
     }
