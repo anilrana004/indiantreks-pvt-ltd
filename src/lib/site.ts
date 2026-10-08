@@ -1,4 +1,4 @@
-import { SITE_LOGO_URL } from '@/lib/brand-assets';
+import { SITE_ICON_URL, SITE_LOGO_URL } from '@/lib/brand-assets';
 
 /** Canonical public site origin — override in production via env. */
 export const SITE_URL =
@@ -12,12 +12,15 @@ export const SITE_DESCRIPTION =
 /** Cloudinary wordmark — same asset as site header. */
 export const SITE_LOGO = SITE_LOGO_URL;
 
+/** Square mark for search / favicon (same as Razorpay checkout). */
+export const SITE_ICON = SITE_ICON_URL;
+
 export const ORGANIZATION = {
   name: SITE_NAME,
   legalName: 'Indian Treks',
   url: SITE_URL,
   email: 'info@indiantreks.in',
-  logo: SITE_LOGO,
+  logo: SITE_ICON,
 } as const;
 
 export function absoluteUrl(path: string): string {

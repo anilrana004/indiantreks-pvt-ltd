@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import AdminLayoutShell from '@/components/admin/AdminLayoutShell';
+import { SITE_ICON_URL } from '@/lib/brand-assets';
 import './admin-globals.css';
 
 export const metadata: Metadata = {
@@ -8,6 +9,13 @@ export const metadata: Metadata = {
     template: '%s | Indian Treks Admin',
   },
   description: 'Internal admin console for Indian Treks.',
+  icons: {
+    icon: [
+      { url: '/icon.png', type: 'image/png', sizes: '192x192' },
+      { url: SITE_ICON_URL, type: 'image/png' },
+    ],
+    shortcut: '/icon.png',
+  },
   robots: { index: false, follow: false },
 };
 

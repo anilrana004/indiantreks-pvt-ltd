@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Lock, Mountain, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Lock, ShieldCheck } from 'lucide-react';
+import BrandLogo from '@/components/BrandLogo';
 import { ADMIN_PREFIX } from '@/lib/admin/constants';
 import { clearStoredAdminToken, resolveApiPath, setStoredAdminToken, unwrapApiJson } from '@/lib/api/client';
 import { isExternalApiEnabled } from '@/lib/env/api-url';
@@ -65,14 +66,9 @@ export default function AdminLogin() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(22,163,74,0.25)_0%,_transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_rgba(22,102,217,0.15)_0%,_transparent_50%)]" />
         <div className="relative z-10 p-10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-900/50">
-              <Mountain className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-white">Indian Treks</p>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Admin Console</p>
-            </div>
+          <div className="space-y-2">
+            <BrandLogo className="h-10 w-auto max-w-[200px] object-contain object-left" />
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Admin Console</p>
           </div>
         </div>
         <div className="relative z-10 space-y-6 p-10">
@@ -95,9 +91,7 @@ export default function AdminLogin() {
       <div className="flex flex-1 flex-col items-center justify-center bg-[#f8fafc] px-6 py-12">
         <div className="w-full max-w-[400px]">
           <div className="mb-8 lg:hidden">
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600">
-              <Mountain className="h-6 w-6 text-white" />
-            </div>
+            <BrandLogo className="mb-4 h-9 w-auto max-w-[180px] object-contain object-left" />
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
             <p className="mt-1 text-sm text-slate-500">Indian Treks Admin Console</p>
           </div>

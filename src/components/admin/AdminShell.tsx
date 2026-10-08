@@ -17,11 +17,11 @@ import {
   MapPin,
   Menu,
   MessageSquare,
-  Mountain,
   Star,
   Users,
   X,
 } from 'lucide-react';
+import BrandLogo from '@/components/BrandLogo';
 import { ADMIN_PREFIX } from '@/lib/admin/constants';
 
 type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
@@ -100,12 +100,9 @@ export default function AdminShell({ children }: Props) {
   const sidebar = (
     <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-slate-800/80 bg-slate-950 text-white">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 shadow-lg shadow-emerald-900/40">
-          <Mountain className="h-5 w-5 text-white" strokeWidth={2} />
-        </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight">Indian Treks</p>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Admin Console</p>
+          <BrandLogo className="h-8 w-auto max-w-[150px] object-contain object-left" />
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wider text-slate-400">Admin Console</p>
         </div>
       </div>
 
