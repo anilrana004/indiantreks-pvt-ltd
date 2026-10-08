@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import BrandLogo from '@/components/BrandLogo';
 import { ADMIN_PREFIX } from '@/lib/admin/constants';
 import { clearStoredAdminToken, resolveApiPath, setStoredAdminToken, unwrapApiJson } from '@/lib/api/client';
@@ -13,6 +13,7 @@ export default function AdminLogin() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [from, setFrom] = useState<string | null>(null);
   const router = useRouter();
 
@@ -90,15 +91,10 @@ export default function AdminLogin() {
       {/* Form panel */}
       <div className="flex flex-1 flex-col items-center justify-center bg-[#f8fafc] px-6 py-12">
         <div className="w-full max-w-[400px]">
-          <div className="mb-8 lg:hidden">
-            <BrandLogo className="mb-4 h-9 w-auto max-w-[180px] object-contain object-left" />
+          <div className="mb-8 flex flex-col items-center text-center">
+            <BrandLogo className="mb-4 h-10 w-auto max-w-[200px] object-contain" />
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
             <p className="mt-1 text-sm text-slate-500">Indian Treks Admin Console</p>
-          </div>
-
-          <div className="hidden lg:block mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
-            <p className="mt-1 text-sm text-slate-500">Sign in to your admin account</p>
           </div>
 
           <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] lg:p-8">
@@ -129,15 +125,25 @@ export default function AdminLogin() {
                 <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
                   Password
                 </label>
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={form.password}
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="h-11 w-full rounded-lg border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    value={form.password}
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    className="h-11 w-full rounded-lg border border-slate-200 px-3.5 pr-11 text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <button
