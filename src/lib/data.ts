@@ -779,7 +779,7 @@ const baseTreks: Trek[] = [
     images: [...KUARI_PASS_GALLERY],
     cardImage: KUARI_PASS_CARD,
     brief:
-      "Experience the Legendary Lord Curzon Trail in the Garhwal Himalayas — oak and rhododendron forests, alpine Bugyals, traditional villages and panoramic views of Nanda Devi, Dronagiri, Kamet and Chaukhamba.",
+      "Lord Curzon Trail winter classic — snow-dusted Bugyals, oak–rhododendron forests and panoramic views of Nanda Devi, Dronagiri, Kamet and Chaukhamba.",
     description: "",
     highlights: [
       "Panoramic Himalayan views — Nanda Devi, Dronagiri, Kamet and Chaukhamba",
@@ -793,7 +793,7 @@ const baseTreks: Trek[] = [
     inclusions: KUARI_PASS_INCLUSIONS,
     exclusions: KUARI_PASS_EXCLUSIONS,
     pricing: [
-      { name: "Economic", price: 9999, originalPrice: 11999, deposit: 3000, badge: "Budget", inclusions: ["Twin-sharing tent", "Sleeping bag (0°C)", "Basic sleeping mat", "Standard meals"], exclusions: ["No microspikes/gaiters", "No separate toilet tent"] },
+      { name: "Economic", price: 9499, originalPrice: 11499, deposit: 3000, badge: "Budget", inclusions: ["Twin-sharing tent", "Sleeping bag (0°C)", "Basic sleeping mat", "Standard meals"], exclusions: ["No microspikes/gaiters", "No separate toilet tent"] },
       { name: "Standard", price: 14999, originalPrice: 18999, deposit: 5000, badge: "Popular", inclusions: ["Twin-sharing weatherproof tent", "Sleeping bag (-10°C)", "Foam sleeping mat", "Nutritious meals", "Separate toilet tents", "Microspikes & gaiters", "Trekking pole"], exclusions: ["No single tent"] },
       { name: "Premium", price: 21999, originalPrice: 27999, deposit: 7000, badge: "Luxury", inclusions: ["Single tent option", "Premium sleeping bag (-15°C)", "Self-inflating mattress", "Gourmet meals", "Separate toilet & shower tents", "Black Diamond trekking poles", "Pickup from Joshimath helipad"], exclusions: ["Personal porters"] },
     ],
@@ -801,6 +801,7 @@ const baseTreks: Trek[] = [
     mapImage: KUARI_PASS_HERO,
     groupSize: "6-15 persons",
     startEndPoint: "Rishikesh to Rishikesh",
+    badge: "Winter",
   },
   {
     id: "nag-tibba",
