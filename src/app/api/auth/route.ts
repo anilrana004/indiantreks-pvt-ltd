@@ -64,9 +64,14 @@ export async function POST(req: Request) {
         });
         response.cookies.set('admin_token', token, adminSessionCookieOptions());
         return response;
-      } catch {
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : '';
         return NextResponse.json(
-          { error: 'Admin session is not configured for production' },
+          {
+            error: detail.includes('ADMIN_SESSION_SECRET')
+              ? detail
+              : 'Admin session is not configured for production. Set ADMIN_SESSION_SECRET (32+ chars) on the admin Vercel project.',
+          },
           { status: 503 },
         );
       }
