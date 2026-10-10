@@ -1,5 +1,3 @@
-import { photos } from '@/lib/media';
-
 export const WHY_CHOOSE_SECTION = {
   kicker: 'Why Choose Us',
   titleBefore: 'Why Choose ',
@@ -18,28 +16,28 @@ export const WHY_CHOOSE_HERO_CARDS = [
   {
     title: 'Trusted Experience',
     desc: "We don't just organize trips — we create experiences backed by expertise and thousands of successful departures.",
-    img: photos.prepHero,
+    img: 'https://res.cloudinary.com/jum1mpl0/image/upload/v1791653600/trusted_experince.png',
     icon: 'fa-solid fa-shield-halved',
     tone: 'green' as const,
   },
   {
     title: 'Safety First',
     desc: 'Every itinerary is designed with safety and responsible operations at its core so you can travel worry-free.',
-    img: photos.womenTrek,
+    img: 'https://res.cloudinary.com/jum1mpl0/image/upload/v1791653697/istockphoto-1367387750-612x612.jpg',
     icon: 'fa-solid fa-shield-heart',
     tone: 'green' as const,
   },
   {
     title: 'Award-Winning Excellence',
     desc: 'Our commitment to quality has earned recognition from industry leaders and our travelers.',
-    img: photos.snow,
+    img: 'https://res.cloudinary.com/jum1mpl0/image/upload/v1791653736/istockphoto-968383644-612x612.jpg',
     icon: 'fa-solid fa-trophy',
     tone: 'gold' as const,
   },
   {
     title: 'More Than Just Travel',
     desc: 'Indian Treks is a community where strangers become friends and every trip creates lifelong stories.',
-    img: photos.backpackingHero,
+    img: 'https://res.cloudinary.com/jum1mpl0/image/upload/v1791653778/2017327.png',
     icon: 'fa-solid fa-people-group',
     tone: 'green' as const,
   },
