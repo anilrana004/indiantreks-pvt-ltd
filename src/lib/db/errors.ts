@@ -1,5 +1,6 @@
 /**
  * Classify Postgres / driver errors for auth UX — never expose connection strings.
+ * Drizzle wraps driver errors as `Failed query: …` with the real PostgresError on `.cause`.
  */
 
 export type DbErrorKind =
@@ -10,14 +11,49 @@ export type DbErrorKind =
   | 'conflict'
   | 'unknown';
 
-export function classifyDbError(err: unknown): { kind: DbErrorKind; message: string } {
-  const message = err instanceof Error ? err.message : String(err);
-  const code =
-    err && typeof err === 'object' && 'code' in err
-      ? String((err as { code?: unknown }).code ?? '')
-      : '';
+function collectErrorText(err: unknown): { text: string; codes: string[] } {
+  const parts: string[] = [];
+  const codes: string[] = [];
+  const seen = new Set<unknown>();
 
-  if (/exceeded the quota|quota|compute time|53000/i.test(message) || code === '53000') {
+  let current: unknown = err;
+  let depth = 0;
+  while (current && depth < 6 && !seen.has(current)) {
+    seen.add(current);
+    depth += 1;
+
+    if (typeof current === 'string') {
+      parts.push(current);
+      break;
+    }
+
+    if (current instanceof Error) {
+      parts.push(current.message);
+      const withCode = current as Error & { code?: unknown; cause?: unknown };
+      if (withCode.code != null) codes.push(String(withCode.code));
+      current = withCode.cause;
+      continue;
+    }
+
+    if (typeof current === 'object') {
+      const obj = current as { message?: unknown; code?: unknown; cause?: unknown };
+      if (typeof obj.message === 'string') parts.push(obj.message);
+      if (obj.code != null) codes.push(String(obj.code));
+      current = obj.cause;
+      continue;
+    }
+
+    break;
+  }
+
+  return { text: parts.join('\n'), codes };
+}
+
+export function classifyDbError(err: unknown): { kind: DbErrorKind; message: string } {
+  const { text, codes } = collectErrorText(err);
+  const codeSet = new Set(codes);
+
+  if (/exceeded the quota|quota|compute time/i.test(text) || codeSet.has('53000')) {
     return {
       kind: 'quota',
       message:
@@ -26,12 +62,10 @@ export function classifyDbError(err: unknown): { kind: DbErrorKind; message: str
   }
 
   if (
-    /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|connection.*refused|timeout|too many connections|53300|57P01|57P03/i.test(
-      message,
-    ) ||
-    code === '53300' ||
-    code === '57P01' ||
-    code === '57P03'
+    /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|connection.*refused|timeout|too many connections/i.test(text) ||
+    codeSet.has('53300') ||
+    codeSet.has('57P01') ||
+    codeSet.has('57P03')
   ) {
     return {
       kind: 'unreachable',
@@ -39,7 +73,11 @@ export function classifyDbError(err: unknown): { kind: DbErrorKind; message: str
     };
   }
 
-  if (/does not exist|undefined column|42703|42P01/i.test(message) || code === '42703' || code === '42P01') {
+  if (
+    /does not exist|undefined column/i.test(text) ||
+    codeSet.has('42703') ||
+    codeSet.has('42P01')
+  ) {
     return {
       kind: 'schema',
       message:
@@ -47,14 +85,14 @@ export function classifyDbError(err: unknown): { kind: DbErrorKind; message: str
     };
   }
 
-  if (/unique|duplicate|23505/i.test(message) || code === '23505') {
+  if (/unique|duplicate/i.test(text) || codeSet.has('23505')) {
     return {
       kind: 'conflict',
       message: 'This Google account or email is already linked. Try email login or another Google account.',
     };
   }
 
-  return { kind: 'unknown', message };
+  return { kind: 'unknown', message: text || 'Unknown database error' };
 }
 
 export function isDbInfraError(err: unknown): boolean {

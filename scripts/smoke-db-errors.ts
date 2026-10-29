@@ -15,6 +15,14 @@ const quota = classifyDbError(
 );
 assert(quota.kind === 'quota', `expected quota, got ${quota.kind}`);
 
+// Drizzle wraps Postgres errors: outer "Failed query", real reason on `.cause`.
+const drizzleQuota = Object.assign(new Error('Failed query: select 1\nparams: '), {
+  cause: Object.assign(new Error('Your account or project has exceeded the quota. Upgrade your plan.'), {
+    code: '53000',
+  }),
+});
+assert(classifyDbError(drizzleQuota).kind === 'quota', 'expected drizzle-wrapped quota');
+
 const schema = classifyDbError(new Error('Failed query: column "session_version" does not exist'));
 assert(schema.kind === 'schema', `expected schema, got ${schema.kind}`);
 
