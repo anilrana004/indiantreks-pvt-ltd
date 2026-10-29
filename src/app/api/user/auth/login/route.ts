@@ -72,13 +72,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    const { findAuthUserById } = await import('@/lib/user-auth/service');
-    const authUser = await findAuthUserById(result.user.id);
-    const token = await createUserSessionToken(
-      result.user.id,
-      result.user.email,
-      authUser?.sessionVersion ?? 0,
-    );
+    let sessionVersion = 0;
+    try {
+      const { findAuthUserById } = await import('@/lib/user-auth/service');
+      const authUser = await findAuthUserById(result.user.id);
+      sessionVersion = authUser?.sessionVersion ?? 0;
+    } catch (lookupErr) {
+      const classified = classifyDbError(lookupErr);
+      console.error('[user-auth/login] session version lookup failed', classified);
+      if (classified.kind !== 'unknown') {
+        return NextResponse.json({ error: classified.message, code: `DB_${classified.kind}` }, { status: 503 });
+      }
+      // Proceed with sessionVersion 0 if lookup failed for a non-infra reason.
+    }
+
+    const token = await createUserSessionToken(result.user.id, result.user.email, sessionVersion);
     // Cookie-only session — never return the token to JS (XSS would steal it).
     const response = NextResponse.json({ success: true, user: result.user });
     response.cookies.set(USER_COOKIE, token, userSessionCookieOptions());
@@ -98,21 +106,19 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     console.error('[user-auth/login]', message);
-    if (message.includes('SESSION_SECRET') || message.includes('production')) {
+
+    if (message.includes('SESSION_SECRET') || /session secret/i.test(message)) {
       return NextResponse.json(
         { error: 'Authentication is not configured for production' },
         { status: 503 },
       );
     }
-    if (/session_version|Failed query|does not exist/i.test(message)) {
-      return NextResponse.json(
-        {
-          error:
-            'Auth database is missing a required column. Run migration 0013_session_version.sql then retry.',
-        },
-        { status: 503 },
-      );
+
+    const classified = classifyDbError(err);
+    if (classified.kind !== 'unknown') {
+      return NextResponse.json({ error: classified.message, code: `DB_${classified.kind}` }, { status: 503 });
     }
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+
+    return NextResponse.json({ error: 'Unable to sign in. Please try again.' }, { status: 503 });
   }
 }
