@@ -25,6 +25,7 @@ import {
 import RichNavDropdown from '@/components/nav/RichNavDropdown';
 import HeaderAuthControls from '@/components/HeaderAuthControls';
 import HeaderSearch from '@/components/HeaderSearch';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import {
   headerSearchFallbackHref,
   searchHeaderContent,
@@ -333,14 +334,8 @@ export default function Header() {
     };
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  // Lock page scroll for mobile menu OR search overlay (iOS-safe).
+  useBodyScrollLock(isOpen || mobSearch);
 
   const closeMobile = useCallback(() => { setIsOpen(false); setMobileOpen([]); }, []);
 

@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { GearCartLine, GearItem } from '@/lib/gear-rental';
 import { GEAR_FALLBACK_IMAGE, getGearById, gearSave } from '@/lib/gear-rental';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import './gear-rental.css';
 
 type TrekGroup = {
@@ -54,18 +55,15 @@ export default function GearRentModal({
     setImgSrc(item.img);
   }, [item, initial?.qty, initial?.size]);
 
+  useBodyScrollLock(Boolean(item));
+
   useEffect(() => {
     if (!item) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [item, onClose]);
 
   if (!item || !mounted) return null;

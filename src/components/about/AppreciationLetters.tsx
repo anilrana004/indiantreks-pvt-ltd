@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { cldUrl } from '@/lib/cloudinary';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 
 /**
  * UI/UX from https://indiantreks.in/about-us/ — “Our Apprecition Letter”:
@@ -43,6 +44,8 @@ const COMMENDATIONS = [
 export default function AppreciationLetters() {
   const [active, setActive] = useState<number | null>(null);
 
+  useBodyScrollLock(active !== null);
+
   useEffect(() => {
     if (active === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -52,12 +55,7 @@ export default function AppreciationLetters() {
         setActive((i) => (i === null ? 0 : (i - 1 + LETTERS.length) % LETTERS.length));
     };
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [active]);
 
   return (

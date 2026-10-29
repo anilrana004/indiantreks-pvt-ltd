@@ -63,6 +63,7 @@ import {
 import WinterTreksFaq from '@/components/treks/WinterTreksFaq';
 import WinterTreksReviews from '@/components/treks/WinterTreksReviews';
 import TreksDesktopHero from '@/components/treks/TreksDesktopHero';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import './treks-explorer.css';
 
 type Filters = {
@@ -207,14 +208,7 @@ export default function AllTreksExplorer({
     setSearchDraft(searchParams.get('q')?.trim() || '');
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!mobileFilters) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [mobileFilters]);
+  useBodyScrollLock(mobileFilters);
 
   const syncUrl = useCallback(
     (next: Filters) => {

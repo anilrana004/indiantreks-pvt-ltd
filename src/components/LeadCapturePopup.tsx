@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { publicApiFetch, publicApiErrorMessage } from '@/lib/api/client';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import { photos } from '@/lib/media';
 import { SITE_NAME } from '@/lib/site';
 import './LeadCapturePopup.css';
@@ -93,18 +94,15 @@ export default function LeadCapturePopup() {
     return () => window.clearTimeout(timer);
   }, [mounted]);
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') dismiss();
     };
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [open, dismiss]);
 
   const setField =

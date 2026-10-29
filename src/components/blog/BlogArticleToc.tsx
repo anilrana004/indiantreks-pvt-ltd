@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BlogTocItem } from '@/components/BlogMarkdown';
 import { useBlogScrollRoot } from '@/components/blog/blog-scroll-context';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 
 const SCROLL_OFFSET = 88;
 
@@ -166,21 +167,17 @@ export default function BlogArticleToc({ items, variant = 'sidebar', defaultOpen
     activeLink?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [activeId, variant, listScrollRef]);
 
+  useBodyScrollLock(variant === 'mobile' && sheetOpen);
+
   useEffect(() => {
     if (variant !== 'mobile' || !sheetOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSheetOpen(false);
     };
 
     document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKeyDown);
-    };
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [variant, sheetOpen]);
 
   if (items.length === 0) return null;

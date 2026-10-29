@@ -11,6 +11,7 @@ import {
   isSpecialProgramsHubPath,
   specialProgramsHubActive,
 } from '@/lib/special-programs-hub-nav';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import './special-programs-hub.css';
 
 /** Same utility strip as home — contact left, quick links right */
@@ -40,17 +41,15 @@ export default function SpecialProgramsHubHeader() {
     setMenuOpen(false);
   }, [pathname]);
 
+  useBodyScrollLock(menuOpen);
+
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMenuOpen(false);
     };
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [menuOpen]);
 
   useEffect(() => {

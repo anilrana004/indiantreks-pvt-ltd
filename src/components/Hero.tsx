@@ -23,6 +23,7 @@ import { HERO_COLLAB_LUCIDE_ICONS } from '@/lib/icons/lucide-content-icons';
 import Banners from '@/components/Banners';
 import CategoryScroller from '@/components/home/CategoryScroller';
 import { HOME_EXPLORE_CATEGORIES } from '@/lib/content/home-explore-categories';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import '@/components/home/hero-mobile-banner.css';
 
 const mobBanners = HERO_MOB_BANNERS;
@@ -95,6 +96,7 @@ export default function Hero() {
 
   /* focus input when overlay opens */
   useEffect(() => { if (showSearch) setTimeout(() => searchRef.current?.focus(), 100); }, [showSearch]);
+  useBodyScrollLock(showSearch);
 
   const bannerTouchX = useRef(0);
   const bannerTouchY = useRef(0);

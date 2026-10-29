@@ -61,6 +61,7 @@ const TrekFitnessSection = dynamic(() => import('@/components/treks/TrekFitnessS
 import TrekGuestReviews from '@/components/treks/TrekGuestReviews';
 import PackageReviewsSidebar from '@/components/treks/PackageReviewsSidebar';
 import { DESK_HEADER_H, MOBILE_HEADER_H, CHROME_HIDDEN_CLASS } from '@/lib/layout';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import './trek-detail.css';
 
 const routeNavLinks = [
@@ -1012,6 +1013,8 @@ export default function TrekDetailContent({
     [images.length],
   );
 
+  useBodyScrollLock(lightbox !== null);
+
   useEffect(() => {
     if (lightbox === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1020,11 +1023,7 @@ export default function TrekDetailContent({
       if (e.key === 'ArrowLeft') step(-1);
     };
     window.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [lightbox, step]);
 
   // ---- Mobile slider ------------------------------------------------------

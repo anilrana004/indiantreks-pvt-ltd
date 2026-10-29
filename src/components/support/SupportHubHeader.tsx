@@ -7,6 +7,7 @@ import BrandLogo from '@/components/BrandLogo';
 import { CONTACT, mailtoUrl, telUrl, whatsappUrl } from '@/lib/contact';
 import { DESK_HEADER_H, DESK_MAIN_H, DESK_TOP_H, CHROME_HIDDEN_CLASS } from '@/lib/layout';
 import { SUPPORT_HUB_LINKS, supportHubActive } from '@/lib/support-hub-nav';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import './support-hub.css';
 
 /** Same utility strip as home — contact left, quick links right */
@@ -41,17 +42,15 @@ export default function SupportHubHeader() {
     setMenuOpen(false);
   }, [pathname]);
 
+  useBodyScrollLock(menuOpen);
+
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMenuOpen(false);
     };
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [menuOpen]);
 
   useEffect(() => {

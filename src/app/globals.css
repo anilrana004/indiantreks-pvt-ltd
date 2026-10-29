@@ -140,7 +140,8 @@ body {
   overflow-x: visible;
   overflow-y: visible;
   overscroll-behavior-x: none;
-  overscroll-behavior-y: none;
+  /* Keep vertical overscroll natural — `none` fights iOS momentum / nested scroll. */
+  overscroll-behavior-y: auto;
   position: relative;
 }
 

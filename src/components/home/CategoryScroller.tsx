@@ -233,7 +233,7 @@ export default function CategoryScroller({ items, variant = 'desktop' }: Props) 
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           className="flex cursor-grab gap-3.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4 pb-1 select-none active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
         >
           {loopItems.map((item, i) => (
             <Link

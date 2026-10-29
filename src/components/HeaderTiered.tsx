@@ -27,6 +27,7 @@ import {
   type RichNavItem,
 } from '@/lib/nav-rich-menu';
 import RichNavDropdown from '@/components/nav/RichNavDropdown';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import './header-nav.css';
 
 const TOP_STRIP_LINKS = [
@@ -342,14 +343,7 @@ export default function HeaderTiered() {
     };
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen || mobSearch);
 
   const closeMobile = useCallback(() => { setIsOpen(false); setMobileOpen([]); }, []);
 

@@ -36,6 +36,7 @@ import {
 } from '@/lib/trek-map/journey-controller';
 import type { RouteProfile } from '@/lib/treks/route-profile-types';
 import type { TrekGeography } from '@/lib/treks/geography/types';
+import { useBodyScrollLock } from '@/lib/dom/use-body-scroll-lock';
 import TrekMapControls from './TrekMapControls';
 import CinematicControls from './CinematicControls';
 import LocationCard from './LocationCard';
@@ -156,18 +157,15 @@ export default function TrekMap({
     return () => window.clearTimeout(id);
   }, [isFullscreen, mapReady, cinematic]);
 
+  useBodyScrollLock(isFullscreen);
+
   useEffect(() => {
     if (!isFullscreen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsFullscreen(false);
     };
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
   const restoreLayers = useCallback((map: mapboxgl.Map) => {
