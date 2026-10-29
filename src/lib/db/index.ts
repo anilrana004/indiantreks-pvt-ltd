@@ -102,6 +102,19 @@ export function getDb(): Db | null {
   return db;
 }
 
+/**
+ * Drop the cached client after fatal connection/quota errors so the next
+ * request opens a fresh socket instead of reusing a dead pooler connection.
+ */
+export function invalidateDb(): void {
+  const previous = client;
+  client = null;
+  db = null;
+  if (previous) {
+    void previous.end({ timeout: 1 }).catch(() => undefined);
+  }
+}
+
 export async function closeDb(): Promise<void> {
   if (client) {
     await client.end();

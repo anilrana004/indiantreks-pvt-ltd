@@ -13,7 +13,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   google_token:
     'Google could not verify this app redirect URL. In Google Cloud Console, add the exact callback shown under Authorized redirect URIs (https://www.indiantreks.in/api/user/auth/google/callback), then retry.',
   google_store:
-    'Sign-in storage is unavailable. On Vercel → Project → Settings → Environment Variables, set DATABASE_URL (or POSTGRES_URL) for Production, then Redeploy.',
+    'Sign-in storage is not configured. On Vercel → Project → Settings → Environment Variables, set DATABASE_URL (or POSTGRES_URL) for Production, then Redeploy.',
+  google_db_quota:
+    'Sign-in database quota is exhausted (Neon compute limit). Upgrade or restore the Neon plan, wait for quota reset, then try again.',
+  google_db_down: 'Sign-in database is temporarily unreachable. Please try again in a minute.',
+  google_db_schema:
+    'Sign-in database schema is incomplete. Run pending auth migrations on Postgres, then Redeploy.',
+  google_conflict:
+    'This Google account or email is already linked. Try email login or the original Google account.',
   google_session:
     'Sign-in session is not configured. Set USER_SESSION_SECRET (32+ characters) on the Vercel storefront project for Production, then Redeploy.',
   google_unverified: 'Your Google email is not verified. Use a verified Google account or email login.',

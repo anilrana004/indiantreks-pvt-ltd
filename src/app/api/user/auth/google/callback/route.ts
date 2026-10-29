@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { classifyDbError } from '@/lib/db/errors';
 import { USER_COOKIE } from '@/lib/user-auth/constants';
 import { exchangeGoogleCode, googleRedirectUri, resolveRequestOrigin } from '@/lib/user-auth/google';
 import {
@@ -89,20 +90,30 @@ export async function GET(req: Request) {
     return res;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const dbKind = classifyDbError(err).kind;
     console.error('[google-oauth] callback failed', {
       message,
       redirectUri,
       origin,
+      dbKind,
     });
-    const codeName = message.includes('token exchange')
-      ? 'google_token'
-      : message.includes('not verified')
-        ? 'google_unverified'
-        : message.includes('SESSION_SECRET') || message.includes('session secret')
-          ? 'google_session'
-          : /Failed query|unique|duplicate|does not exist/i.test(message)
-            ? 'google_store'
-            : 'google_failed';
+
+    // google_store is ONLY for missing DATABASE_URL — never mislabel quota/schema/conflicts.
+    let codeName = 'google_failed';
+    if (message.includes('token exchange')) codeName = 'google_token';
+    else if (message.includes('not verified')) codeName = 'google_unverified';
+    else if (message.includes('SESSION_SECRET') || message.includes('session secret')) {
+      codeName = 'google_session';
+    } else if (dbKind === 'quota') codeName = 'google_db_quota';
+    else if (dbKind === 'unreachable') codeName = 'google_db_down';
+    else if (dbKind === 'schema') codeName = 'google_db_schema';
+    else if (dbKind === 'conflict' || /already linked/i.test(message)) codeName = 'google_conflict';
+    else if (/quota|unreachable|schema incomplete/i.test(message)) {
+      if (/quota/i.test(message)) codeName = 'google_db_quota';
+      else if (/unreachable/i.test(message)) codeName = 'google_db_down';
+      else codeName = 'google_db_schema';
+    }
+
     return failRedirect(origin, codeName);
   }
 }

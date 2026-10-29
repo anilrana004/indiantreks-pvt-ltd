@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { classifyDbError } from '@/lib/db/errors';
 import { USER_COOKIE } from '@/lib/user-auth/constants';
 import {
   authenticateWithPassword,
@@ -40,8 +41,9 @@ export async function POST(req: Request) {
     }
 
     // Password-login bucket only (never shared with Google OAuth start/callback).
+    // Fail-open on DB outage/quota so infra errors are not disguised as rate limits.
     const identity = `${clientIp(req)}:${parsed.data!.email.trim().toLowerCase()}`;
-    const limited = await consumeRateLimit(AUTH_LOGIN_LIMIT, identity);
+    const limited = await consumeRateLimit(AUTH_LOGIN_LIMIT, identity, { failClosed: false });
     if (!limited.allowed) {
       return rateLimitedResponse(limited.retryAfterSec);
     }
@@ -50,16 +52,10 @@ export async function POST(req: Request) {
     try {
       result = await authenticateWithPassword(parsed.data!.email, parsed.data!.password);
     } catch (authErr) {
-      const message = authErr instanceof Error ? authErr.message : '';
-      console.error('[user-auth/login] authenticate failed', message);
-      if (/session_version|Failed query|does not exist/i.test(message)) {
-        return NextResponse.json(
-          {
-            error:
-              'Auth database is missing a required column. Run migration 0013_session_version.sql then retry.',
-          },
-          { status: 503 },
-        );
+      const classified = classifyDbError(authErr);
+      console.error('[user-auth/login] authenticate failed', classified);
+      if (classified.kind !== 'unknown') {
+        return NextResponse.json({ error: classified.message, code: `DB_${classified.kind}` }, { status: 503 });
       }
       return NextResponse.json({ error: 'Unable to sign in. Please try again.' }, { status: 503 });
     }

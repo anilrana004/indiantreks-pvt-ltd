@@ -34,7 +34,8 @@ export async function consumeRateLimit(
   identity: string,
   opts?: { failClosed?: boolean },
 ): Promise<{ allowed: boolean; retryAfterSec: number }> {
-  const failClosed = opts?.failClosed !== false;
+  // Default fail-open: Neon quota / DB outages must not fake "Too many attempts".
+  const failClosed = opts?.failClosed === true;
   const db = getDb();
   const windowSec = Math.max(1, Math.ceil(policy.windowMs / 1000));
   if (!db) {

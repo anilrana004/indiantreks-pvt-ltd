@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
-import { getDb, isDbConfigured, schema } from '@/lib/db';
+import { getDb, invalidateDb, isDbConfigured, schema } from '@/lib/db';
+import { classifyDbError, isDbInfraError } from '@/lib/db/errors';
 import { PASSWORD_RESET_TTL_MS } from '@/lib/user-auth/constants';
 import { generateRawToken, hashPassword, hashToken, verifyPassword } from '@/lib/user-auth/password';
 import type { AuthUserRecord, PublicUser, RegisterUserInput } from '@/lib/user-auth/types';
@@ -289,12 +290,47 @@ export async function upsertGoogleUser(input: {
   name: string;
   avatarUrl?: string;
 }): Promise<PublicUser> {
+  try {
+    return await upsertGoogleUserOnce(input);
+  } catch (err) {
+    if (isDbInfraError(err)) {
+      invalidateDb();
+      const classified = classifyDbError(err);
+      throw new Error(classified.message);
+    }
+
+    // Race / unique conflict: re-read winners and return if the account exists.
+    const classified = classifyDbError(err);
+    if (classified.kind === 'conflict') {
+      const bySub = await findAuthUserByGoogleSub(input.googleSub).catch(() => null);
+      if (bySub) return toPublic(bySub);
+      const byEmail = await findAuthUserByEmail(input.email).catch(() => null);
+      if (byEmail) return toPublic(byEmail);
+      throw new Error(classified.message);
+    }
+
+    throw err;
+  }
+}
+
+async function upsertGoogleUserOnce(input: {
+  googleSub: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+}): Promise<PublicUser> {
   const email = normalizeEmail(input.email);
   const bySub = await findAuthUserByGoogleSub(input.googleSub);
   if (bySub) return toPublic(bySub);
 
   const byEmail = await findAuthUserByEmail(email);
   if (byEmail) {
+    if (byEmail.googleSub && byEmail.googleSub !== input.googleSub) {
+      throw new Error(
+        'This email is already linked to a different Google account. Sign in with email/password or the original Google account.',
+      );
+    }
+
     if (isDbConfigured()) {
       const db = getDb()!;
       const [row] = await db
@@ -340,6 +376,15 @@ export async function upsertGoogleUser(input: {
         emailVerified: true,
         avatarUrl: input.avatarUrl ?? null,
         bookingsCount: 0,
+      })
+      .onConflictDoUpdate({
+        target: siteUsers.email,
+        set: {
+          googleSub: input.googleSub,
+          emailVerified: true,
+          avatarUrl: input.avatarUrl ?? null,
+          updatedAt: new Date(),
+        },
       })
       .returning();
     return toPublic(rowToAuth(row!));
