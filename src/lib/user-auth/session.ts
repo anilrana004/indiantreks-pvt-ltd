@@ -6,15 +6,16 @@ const DEV_USER_SESSION_SECRET = 'indiantreks-dev-user-session-secret';
 
 function sessionSecret(): string {
   const userSecret = process.env.USER_SESSION_SECRET?.trim();
+  const adminSecret = process.env.ADMIN_SESSION_SECRET?.trim();
 
   if (isProductionRuntime()) {
-    if (!userSecret || userSecret.length < 32) {
-      throw new Error('USER_SESSION_SECRET must be set (32+ chars) in production');
-    }
-    return userSecret;
+    if (userSecret && userSecret.length >= 32) return userSecret;
+    // Prefer dedicated USER_SESSION_SECRET; allow ADMIN_SESSION_SECRET as documented fallback.
+    if (adminSecret && adminSecret.length >= 32) return adminSecret;
+    throw new Error('USER_SESSION_SECRET must be set (32+ chars) in production');
   }
 
-  return userSecret || DEV_USER_SESSION_SECRET;
+  return userSecret || adminSecret || DEV_USER_SESSION_SECRET;
 }
 
 async function importHmacKey(secret: string): Promise<CryptoKey> {

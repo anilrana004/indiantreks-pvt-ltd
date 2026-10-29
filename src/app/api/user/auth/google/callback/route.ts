@@ -71,13 +71,20 @@ export async function GET(req: Request) {
     res.cookies.set(USER_COOKIE, token, userSessionCookieOptions());
     clearOauthCookies(res);
 
-    await recordAuthEvent({
-      userId: user.id,
-      email: user.email,
-      event: 'google_login_success',
-      ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
-      userAgent: req.headers.get('user-agent'),
-    });
+    // Audit must not block sign-in (password login already follows this rule).
+    try {
+      await recordAuthEvent({
+        userId: user.id,
+        email: user.email,
+        event: 'google_login_success',
+        ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+        userAgent: req.headers.get('user-agent'),
+      });
+    } catch (auditErr) {
+      console.error('[google-oauth] audit event failed', {
+        message: auditErr instanceof Error ? auditErr.message : String(auditErr),
+      });
+    }
 
     return res;
   } catch (err) {
@@ -91,7 +98,11 @@ export async function GET(req: Request) {
       ? 'google_token'
       : message.includes('not verified')
         ? 'google_unverified'
-        : 'google_failed';
+        : message.includes('SESSION_SECRET') || message.includes('session secret')
+          ? 'google_session'
+          : /Failed query|unique|duplicate|does not exist/i.test(message)
+            ? 'google_store'
+            : 'google_failed';
     return failRedirect(origin, codeName);
   }
 }

@@ -39,13 +39,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Validation failed', fieldErrors: parsed.fieldErrors }, { status: 400 });
     }
 
+    // Password-login bucket only (never shared with Google OAuth start/callback).
     const identity = `${clientIp(req)}:${parsed.data!.email.trim().toLowerCase()}`;
     const limited = await consumeRateLimit(AUTH_LOGIN_LIMIT, identity);
     if (!limited.allowed) {
       return rateLimitedResponse(limited.retryAfterSec);
     }
 
-    const result = await authenticateWithPassword(parsed.data!.email, parsed.data!.password);
+    let result: Awaited<ReturnType<typeof authenticateWithPassword>>;
+    try {
+      result = await authenticateWithPassword(parsed.data!.email, parsed.data!.password);
+    } catch (authErr) {
+      const message = authErr instanceof Error ? authErr.message : '';
+      console.error('[user-auth/login] authenticate failed', message);
+      if (/session_version|Failed query|does not exist/i.test(message)) {
+        return NextResponse.json(
+          {
+            error:
+              'Auth database is missing a required column. Run migration 0013_session_version.sql then retry.',
+          },
+          { status: 503 },
+        );
+      }
+      return NextResponse.json({ error: 'Unable to sign in. Please try again.' }, { status: 503 });
+    }
     if ('error' in result) {
       try {
         await recordAuthEvent({

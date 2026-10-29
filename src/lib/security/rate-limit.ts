@@ -116,7 +116,14 @@ export async function checkUserRateLimit(
 
 export const AUTH_LOGIN_LIMIT: RateLimitPolicy = {
   endpoint: 'auth.login',
-  limit: 5,
+  limit: 10,
+  windowMs: 15 * 60 * 1000,
+};
+
+/** Google OAuth start (authorize redirect) — separate from password login. */
+export const AUTH_GOOGLE_START_LIMIT: RateLimitPolicy = {
+  endpoint: 'auth.google.start',
+  limit: 20,
   windowMs: 15 * 60 * 1000,
 };
 

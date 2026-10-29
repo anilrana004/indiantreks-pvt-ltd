@@ -8,6 +8,12 @@ import {
   resolveRequestOrigin,
 } from '@/lib/user-auth/google';
 import { safeReturnPath } from '@/lib/security/urls';
+import {
+  AUTH_GOOGLE_START_LIMIT,
+  clientIp,
+  consumeRateLimit,
+  rateLimitedResponse,
+} from '@/lib/security/rate-limit';
 
 export async function GET(req: Request) {
   if (!isGoogleAuthConfigured()) {
@@ -15,6 +21,14 @@ export async function GET(req: Request) {
       { error: 'Google sign-in is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' },
       { status: 503 },
     );
+  }
+
+  // Separate bucket from password login so OAuth retries do not collide with AUTH_LOGIN_LIMIT.
+  const limited = await consumeRateLimit(AUTH_GOOGLE_START_LIMIT, `ip:${clientIp(req)}`, {
+    failClosed: false,
+  });
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited.retryAfterSec);
   }
 
   const origin = resolveRequestOrigin(req);
