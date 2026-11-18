@@ -35,6 +35,7 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
+  const started = Date.now();
   if (!isDbConfigured()) return dbUnavailableResponse();
   if (!isRazorpayConfigured()) {
     return NextResponse.json(
@@ -44,9 +45,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Full user load (DB) — rejects deleted users and revoked session versions.
-  const [abuse, user] = await Promise.all([
+  const [abuse, user, body] = await Promise.all([
     checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
     getCurrentUser(),
+    req.json().catch(() => null),
   ]);
   if (!abuse.allowed) {
     return rateLimitedResponse(abuse.retryAfterSec);
@@ -62,52 +64,66 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const paymentMode = (body.paymentMode || body.payment || 'deposit') as BookingPayment;
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const payload = body as Record<string, unknown>;
+    const paymentMode = (payload.paymentMode || payload.payment || 'deposit') as BookingPayment;
     if (!['deposit', 'half', 'full'].includes(paymentMode)) {
       return NextResponse.json({ error: 'Invalid payment mode' }, { status: 400 });
     }
 
     const idempotencyKey =
       req.headers.get('idempotency-key')?.trim() ||
-      `pay:${String(body.trekId || '')}:${String(body.date || '')}:${String(body.email || '')}`;
+      `pay:${String(payload.trekId || '')}:${String(payload.date || '')}:${String(payload.email || '')}`;
 
     const result = await createPayNowCheckout({
-      trekId: String(body.trekId || ''),
-      packageName: String(body.packageName || body.package || ''),
-      persons: Number(body.persons || 1),
+      trekId: String(payload.trekId || ''),
+      packageName: String(payload.packageName || payload.package || ''),
+      persons: Number(payload.persons || 1),
       paymentMode,
-      addonIds: Array.isArray(body.addonIds) ? body.addonIds.map(String) : [],
-      pickupFeePerPerson: Number(body.pickupFeePerPerson || 0),
-      gearLines: Array.isArray(body.gearLines)
-        ? body.gearLines.map((g: { gearId?: string; qty?: number }) => ({
-            gearId: String(g.gearId || ''),
-            qty: Number(g.qty || 0),
-          }))
+      addonIds: Array.isArray(payload.addonIds) ? payload.addonIds.map(String) : [],
+      pickupFeePerPerson: Number(payload.pickupFeePerPerson || 0),
+      gearLines: Array.isArray(payload.gearLines)
+        ? payload.gearLines.map((g: unknown) => {
+            const row = (g || {}) as { gearId?: string; qty?: number };
+            return {
+              gearId: String(row.gearId || ''),
+              qty: Number(row.qty || 0),
+            };
+          })
         : [],
-      name: String(body.name || ''),
-      email: String(body.email || ''),
-      phone: String(body.phone || ''),
-      city: String(body.city || ''),
-      date: String(body.date || ''),
-      batchId: body.batchId ? String(body.batchId) : undefined,
-      notes: String(body.notes || ''),
-      pickup: String(body.pickup || ''),
-      participants: Array.isArray(body.participants) ? body.participants : [],
+      name: String(payload.name || ''),
+      email: String(payload.email || ''),
+      phone: String(payload.phone || ''),
+      city: String(payload.city || ''),
+      date: String(payload.date || ''),
+      batchId: payload.batchId ? String(payload.batchId) : undefined,
+      notes: String(payload.notes || ''),
+      pickup: String(payload.pickup || ''),
+      participants: Array.isArray(payload.participants) ? payload.participants : [],
       user,
       idempotencyKey,
     });
+
 
     const { checkoutToken, ...order } = result;
     // `reused` is server-only telemetry — strip before client response.
     delete (order as { reused?: boolean }).reused;
 
+    const ms = Date.now() - started;
     return NextResponse.json(
       {
         checkoutToken,
         ...order,
       },
-      { status: 201 },
+      {
+        status: 201,
+        headers: {
+          'Server-Timing': `pay-now;dur=${ms}`,
+          'Cache-Control': 'no-store',
+        },
+      },
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Invalid request';

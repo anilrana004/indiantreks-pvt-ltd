@@ -141,15 +141,25 @@ function loadRazorpayScript(): Promise<void> {
   return razorpayLoadPromise;
 }
 
-/** Warm the Razorpay SDK before Pay Now so checkout opens without a script wait. */
+/** Warm DNS/TLS + ensure checkout.js is in cache (and executed when ready). */
 export function preloadRazorpayCheckout(): void {
   if (typeof window === 'undefined') return;
   ensureHeadLink('preconnect', 'https://checkout.razorpay.com', { crossorigin: 'anonymous' });
   ensureHeadLink('preconnect', 'https://api.razorpay.com', { crossorigin: 'anonymous' });
   ensureHeadLink('dns-prefetch', 'https://checkout.razorpay.com');
+  ensureHeadLink('preload', RAZORPAY_SRC, { as: 'script' });
   void loadRazorpayScript().catch(() => {
     /* ignore warm failures — open path still loads */
   });
+}
+
+/** Download-only warm — uses preload cache without forcing execution races. */
+export function prefetchRazorpayCheckoutScript(): void {
+  if (typeof window === 'undefined') return;
+  ensureHeadLink('preconnect', 'https://checkout.razorpay.com', { crossorigin: 'anonymous' });
+  ensureHeadLink('preconnect', 'https://api.razorpay.com', { crossorigin: 'anonymous' });
+  ensureHeadLink('dns-prefetch', 'https://checkout.razorpay.com');
+  ensureHeadLink('preload', RAZORPAY_SRC, { as: 'script' });
 }
 
 /** Awaitable warm — use before opening so Pay Now never waits on script I/O. */

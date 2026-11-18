@@ -39,10 +39,15 @@ export default async function BookingPage({
 
   return (
     <>
-      {/* Preconnect only — SDK loads client-side after auth so guests avoid Razorpay console noise. */}
       <link rel="preconnect" href="https://checkout.razorpay.com" crossOrigin="anonymous" />
       <link rel="preconnect" href="https://api.razorpay.com" crossOrigin="anonymous" />
       <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+      {/* Download checkout.js into HTTP cache without executing — modal open stays instant. */}
+      <link
+        rel="preload"
+        href="https://checkout.razorpay.com/v1/checkout.js"
+        as="script"
+      />
       <BookingCheckoutClient trek={bookingTrek} />
     </>
   );

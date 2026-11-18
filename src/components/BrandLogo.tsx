@@ -1,6 +1,6 @@
-import { SITE_LOGO_URL } from '@/lib/brand-assets';
+import { SITE_LOGO_UI_URL } from '@/lib/brand-assets';
 
-const LOGO_SRC = SITE_LOGO_URL;
+const LOGO_SRC = SITE_LOGO_UI_URL;
 
 type BrandLogoProps = {
   /** Tailwind size classes. Wide wordmark - keep height modest. */

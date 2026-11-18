@@ -35,6 +35,7 @@ import {
   isRazorpayReady,
   openRazorpayCheckout,
   openRazorpayCheckoutSync,
+  prefetchRazorpayCheckoutScript,
   preloadRazorpayCheckout,
   type RazorpayCheckoutOrder,
 } from '@/lib/payments/checkout-client';
@@ -60,14 +61,14 @@ function payIdempotencyKey(fingerprint: string) {
 
 let payApiWarmStarted = false;
 
-/** Warm TLS/HTTP2 to Pay Now without creating a booking (once per page). */
+/** Warm TLS/HTTP2 to Pay Now + create-order without creating a booking (once per page). */
 function prefetchPayApiConnection() {
   if (payApiWarmStarted || typeof window === 'undefined') return;
   payApiWarmStarted = true;
-  void fetch('/api/bookings/pay', {
-    method: 'OPTIONS',
-    credentials: 'include',
-  }).catch(() => {
+  void Promise.all([
+    fetch('/api/bookings/pay', { method: 'OPTIONS', credentials: 'include' }),
+    fetch('/api/payments/create-order', { method: 'OPTIONS', credentials: 'include' }),
+  ]).catch(() => {
     /* ignore warm failures */
   });
 }
@@ -339,7 +340,11 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     };
   }, []);
 
-  // Warm Razorpay + pay API only when signed in — guests never pull checkout.js (no 3P console noise).
+  // Always preload checkout.js into cache; execute SDK + warm pay API once signed in.
+  useEffect(() => {
+    prefetchRazorpayCheckoutScript();
+  }, []);
+
   useEffect(() => {
     if (authStatus !== 'signed_in') return;
     preloadRazorpayCheckout();

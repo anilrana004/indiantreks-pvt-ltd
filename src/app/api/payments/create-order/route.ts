@@ -15,18 +15,33 @@ import { getCurrentUser, unauthorizedUserResponse } from '@/lib/user-auth/auth';
 
 export const runtime = 'nodejs';
 
+/** Connection warm — SPA can OPTIONS/HEAD without creating an order. */
+export async function HEAD() {
+  return new NextResponse(null, { status: 204 });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: { Allow: 'HEAD, OPTIONS, POST' },
+  });
+}
+
 export async function POST(req: NextRequest) {
+  const started = Date.now();
   if (!isDbConfigured()) return dbUnavailableResponse();
   if (!isRazorpayConfigured()) {
     return NextResponse.json({ error: 'Razorpay is not configured' }, { status: 503 });
   }
 
-  const abuse = await checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req));
+  // Parallel auth + IP shield — remove sequential await before order work.
+  const [abuse, user] = await Promise.all([
+    checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
+    getCurrentUser(),
+  ]);
   if (!abuse.allowed) {
     return rateLimitedResponse(abuse.retryAfterSec);
   }
-
-  const user = await getCurrentUser();
   if (!user) {
     console.info(
       JSON.stringify({
@@ -54,10 +69,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'bookingId and checkoutToken are required' }, { status: 400 });
     }
 
+    // Pass authenticated user so service skips a second getCurrentUser DB round-trip.
     const order = await createRazorpayOrderForBooking(bookingId, checkoutToken, {
       idempotencyKey: idempotencyKey || undefined,
+      user,
     });
-    return NextResponse.json(order);
+
+    const ms = Date.now() - started;
+    return NextResponse.json(order, {
+      headers: {
+        'Server-Timing': `create-order;dur=${ms}`,
+        'Cache-Control': 'no-store',
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unable to create order';
     const status =

@@ -18,7 +18,7 @@ const poppins = Poppins({
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
-  weight: ['700', '800'],
+  weight: ['700'],
   style: ['normal'],
   variable: '--font-playfair',
   display: 'swap',
@@ -26,7 +26,7 @@ const playfair = Playfair_Display({
 
 const nunito = Nunito({
   subsets: ['latin'],
-  weight: ['600', '700', '800'],
+  weight: ['700', '800'],
   style: ['normal'],
   variable: '--font-nunito',
   display: 'swap',
