@@ -422,7 +422,10 @@ export async function createPayNowCheckout(input: PayNowCheckoutInput) {
           throw err;
         }),
       attachHoldToBooking(reservation.holdId, row.id, reservation.batchId),
-      replaceBookingParticipants(row.id, normalized),
+      // Skip participant wipe/insert when none were provided (new booking has no rows).
+      normalized.length
+        ? replaceBookingParticipants(row.id, normalized)
+        : Promise.resolve(),
     ]);
 
     void db
@@ -988,37 +991,16 @@ export async function verifyAndConfirmPayment(input: {
   razorpayOrderId: string;
   razorpayPaymentId: string;
   razorpaySignature: string;
+  /** When provided by an authenticated route, skips a second getCurrentUser DB hit. */
+  user?: PublicUser;
 }) {
-  const user = await getCurrentUser();
+  const user = input.user ?? (await getCurrentUser());
   if (!user) {
     throw Object.assign(new Error('Please sign in to continue.'), { status: 401 });
   }
 
-  const bookingRow = await loadBooking(input.bookingId);
-  if (!bookingRow) throw Object.assign(new Error('Booking not found'), { status: 404 });
-
-  if (!isTrustedCheckoutBooking(bookingRow)) {
-    throw Object.assign(new Error('Booking is not eligible for payment'), { status: 403 });
-  }
-
-  if (bookingRow.userId !== user.id) {
-    logPayment('authorization_denied', {
-      bookingId: bookingRow.id,
-      userId: user.id,
-      reason: 'not_owner',
-    });
-    throw Object.assign(new Error('Forbidden'), { status: 403 });
-  }
-
-  const tokenOk = verifyCheckoutToken(input.checkoutToken, bookingRow.checkoutTokenHash);
-  if (!tokenOk) {
-    logPayment('authorization_denied', {
-      bookingId: bookingRow.id,
-      userId: user.id,
-      reason: 'invalid_checkout_token',
-    });
-    throw Object.assign(new Error('Forbidden'), { status: 403 });
-  }
+  // Single ownership + token gate — reuse for the payable assertion below.
+  const booking = await assertBookingPayable(input.bookingId, input.checkoutToken, { user });
 
   const db = requireDb();
 
@@ -1028,29 +1010,27 @@ export async function verifyAndConfirmPayment(input: {
     .where(eq(paymentTransactions.razorpayOrderId, input.razorpayOrderId))
     .limit(1);
 
-  if (!tx || tx.bookingId !== bookingRow.id) {
+  if (!tx || tx.bookingId !== booking.id) {
     logPayment('verify_order_mismatch', {
-      bookingId: bookingRow.id,
+      bookingId: booking.id,
       razorpayOrderId: input.razorpayOrderId,
     });
     throw Object.assign(new Error('Order does not match booking'), { status: 400 });
   }
 
   if (
-    (bookingRow.status === 'confirmed' && bookingRow.paymentStatus === 'paid') ||
+    (booking.status === 'confirmed' && booking.paymentStatus === 'paid') ||
     (tx.status === 'captured' && tx.razorpayPaymentId)
   ) {
     return {
       ok: true as const,
       alreadyConfirmed: true,
-      bookingId: bookingRow.id,
-      referenceCode: bookingRow.referenceCode,
+      bookingId: booking.id,
+      referenceCode: booking.referenceCode,
       status: 'confirmed' as BookingStatus,
       paymentStatus: 'paid' as BookingPaymentStatus,
     };
   }
-
-  const booking = await assertBookingPayable(input.bookingId, input.checkoutToken);
 
   // Trusted order id from DB — never from browser alone
   const trustedOrderId = tx.razorpayOrderId;

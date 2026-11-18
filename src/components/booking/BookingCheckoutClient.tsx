@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { ArrowRight, Shield, Check, ChevronRight, Star, Users, Phone, Calendar, CreditCard, Lock, Percent, Gift, Loader, Plus, Trash2, Info, UserRound, IndianRupee, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -27,6 +28,7 @@ import {
   writeGearCart,
 } from '@/lib/gear-rental';
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
+import { cldOptimize, STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import type { PublicUser } from '@/lib/user-auth/types';
 import {
   ensureRazorpayReady,
@@ -38,6 +40,18 @@ import {
 } from '@/lib/payments/checkout-client';
 import type { BookingPayment } from '@/lib/operations/types';
 import { safeReturnPath } from '@/lib/security/urls';
+
+async function readJsonSafe(res: Response): Promise<Record<string, unknown>> {
+  const type = res.headers.get('content-type') || '';
+  if (!type.includes('application/json')) {
+    return { error: res.statusText || `Request failed (${res.status})` };
+  }
+  try {
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return { error: `Request failed (${res.status})` };
+  }
+}
 
 /** Stable key for warm + click so the same cart never double-creates a hold/order. */
 function payIdempotencyKey(fingerprint: string) {
@@ -425,6 +439,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     setInviteEmail('');
   };
 
+  // Order fingerprint excludes notes/voucher — those change often and must not spam Razorpay.
   const payFingerprint = useMemo(() => {
     const addonKey = selectedAddonIds.join(',');
     const gearKey = gearLines.map((g) => `${g.gearId}:${g.qty}`).join(',');
@@ -446,8 +461,6 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
       String(pickupFee),
       gearKey,
       namedKey,
-      voucherCode.trim().toLowerCase(),
-      form.notes.trim(),
       sp.get('batchId') || '',
     ].join('::');
   }, [
@@ -459,25 +472,34 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     form.name,
     form.city,
     form.pickup,
-    form.notes,
     pkgKey,
     personCount,
     selectedAddonIds,
     pickupFee,
     gearLines,
     namedParticipants,
-    voucherCode,
     sp,
   ]);
 
+  const trekThumb = useMemo(() => {
+    const raw = trek.images[0] || '';
+    if (!raw) return '';
+    return cldOptimize(raw, { w: 320, h: 320, crop: 'fill', quality: 'auto' });
+  }, [trek.images]);
+
   /**
-   * Early warm (TTH-style): start on step 2 once contact fields are complete so Confirm
-   * already has booking + Razorpay order. Debounce is short on Confirm; longer on Details
-   * to avoid thrashing holds while typing. Abandon previous hold on fingerprint change.
+   * Step 2: warm SDK + TLS only (no booking/order).
+   * Step 3: create booking + Razorpay order once Confirm is stable — Pay Now opens instantly.
    */
   useEffect(() => {
     if (step < 2 || authStatus !== 'signed_in') return;
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.date) return;
+
+    preloadRazorpayCheckout();
+    prefetchPayApiConnection();
+
+    // Do not create real orders while the guest is still editing details.
+    if (step < 3) return;
 
     const fingerprint = payFingerprint;
     if (readyCheckoutRef.current?.fingerprint === fingerprint) return;
@@ -502,11 +524,9 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     const idempotencyKey = payIdempotencyKey(fingerprint);
     warmIdempotencyKeyRef.current = idempotencyKey;
     setWarmingPay(true);
-    preloadRazorpayCheckout();
 
     const run = async () => {
       try {
-        // SDK + pay in parallel — don't serialize script wait before order create.
         const [, payRes] = await Promise.all([
           ensureRazorpayReady(),
           fetch('/api/bookings/pay', {
@@ -516,8 +536,6 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
               'Idempotency-Key': idempotencyKey,
             },
             credentials: 'include',
-            // Intentionally not aborted on fingerprint change — completed supersedes
-            // abandon themselves so we never leave an orphan hold after abort.
             body: JSON.stringify({
               trekId: trek.id,
               packageName: pkgKey,
@@ -543,19 +561,18 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
             }),
           }),
         ]);
-        const payBody = await payRes.json();
+        const payBody = await readJsonSafe(payRes);
         if (payRes.status === 401 || payBody.code === 'AUTH_REQUIRED') {
           if (gen === warmGen.current) setAuthStatus('guest');
           return null;
         }
         if (!payRes.ok) return null;
-        const { bookingId, checkoutToken, ...order } = payBody as {
-          bookingId: string;
-          checkoutToken: string;
-        } & RazorpayCheckoutOrder;
+        const bookingId = String(payBody.bookingId || '');
+        const checkoutToken = String(payBody.checkoutToken || '');
+        const { bookingId: _b, checkoutToken: _c, ...orderRest } = payBody;
+        const order = orderRest as unknown as RazorpayCheckoutOrder;
         if (!bookingId || !checkoutToken || !order.razorpayOrderId) return null;
 
-        // Superseded by a newer warm — release this hold immediately.
         if (gen !== warmGen.current) {
           void fetch('/api/bookings/abandon', {
             method: 'POST',
@@ -577,7 +594,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
           fingerprint,
           bookingId,
           checkoutToken,
-          order: order as RazorpayCheckoutOrder,
+          order,
           idempotencyKey,
         };
         setReadyCheckout(ready);
@@ -589,20 +606,17 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
       }
     };
 
-    // Confirm: near-instant. Details: longer debounce so typing doesn't spam holds.
-    const debounceMs = step >= 3 ? 80 : 350;
     const timer = window.setTimeout(() => {
       const promise = run();
       warmPromiseRef.current = promise;
-    }, debounceMs);
+    }, 120);
 
     return () => {
       window.clearTimeout(timer);
     };
-    // Fingerprint encodes all pay-critical fields — avoid re-warming on referential churn.
+    // Fingerprint encodes pay-critical fields — avoid re-warming on referential churn.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
   }, [step, authStatus, payFingerprint]);
-
   const steps = [
     { num: 1, label: 'Package & Date', icon: Calendar },
     { num: 2, label: 'Your Details', icon: Users },
@@ -648,9 +662,9 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
               razorpay_signature: response.razorpay_signature,
             }),
           });
-          const verifyBody = await verifyRes.json();
+          const verifyBody = await readJsonSafe(verifyRes);
           if (!verifyRes.ok) {
-            throw new Error(verifyBody.error || 'Payment verification failed');
+            throw new Error(String(verifyBody.error || 'Payment verification failed'));
           }
           router.push(
             `/booking/success?bookingId=${encodeURIComponent(bookingId)}`,
@@ -671,11 +685,19 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     };
 
     // Instant path: construct + open() synchronously when SDK is warm (no await after click).
-    if (isRazorpayReady()) {
-      openRazorpayCheckoutSync(order, handlers);
-      return;
+    try {
+      if (isRazorpayReady()) {
+        openRazorpayCheckoutSync(order, handlers);
+        return;
+      }
+      void openRazorpayCheckout(order, handlers).catch((err) => {
+        setPaying(false);
+        setPayError(err instanceof Error ? err.message : 'Unable to open Razorpay Checkout');
+      });
+    } catch (err) {
+      setPaying(false);
+      setPayError(err instanceof Error ? err.message : 'Unable to open Razorpay Checkout');
     }
-    void openRazorpayCheckout(order, handlers);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -783,7 +805,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
           }),
         }),
       ]);
-      const payBody = await payRes.json();
+      const payBody = await readJsonSafe(payRes);
       if (payRes.status === 401 || payBody.code === 'AUTH_REQUIRED') {
         setPayError('Please log in to continue with your booking.');
         redirectToLogin();
@@ -791,13 +813,16 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
         return;
       }
       if (!payRes.ok) {
-        throw new Error(payBody.error || 'Unable to start payment');
+        throw new Error(String(payBody.error || 'Unable to start payment'));
       }
 
-      const { bookingId, checkoutToken, ...order } = payBody as {
-        bookingId: string;
-        checkoutToken: string;
-      } & RazorpayCheckoutOrder;
+      const bookingId = String(payBody.bookingId || '');
+      const checkoutToken = String(payBody.checkoutToken || '');
+      const { bookingId: _b, checkoutToken: _c, ...orderRest } = payBody;
+      const order = orderRest as unknown as RazorpayCheckoutOrder;
+      if (!bookingId || !checkoutToken || !order.razorpayOrderId) {
+        throw new Error('Unable to start payment');
+      }
 
       launchCheckout(bookingId, checkoutToken, order);
     } catch (err) {
@@ -1239,7 +1264,19 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
 
                   <div className="bg-gray-50 rounded-xl p-5 space-y-3">
                     <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={trek.images[0]} alt="" className="w-full h-full object-cover" /></div>
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                        {trekThumb ? (
+                          <Image
+                            src={trekThumb}
+                            alt=""
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                            placeholder="blur"
+                            blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                          />
+                        ) : null}
+                      </div>
                       <div><h4 className="font-semibold text-sm text-[#000000]">{trek.title}</h4><p className="text-xs text-gray-500">{trek.duration} &middot; {trek.difficulty}</p></div>
                     </div>
                     <div className="space-y-2.5 text-sm">
@@ -1450,7 +1487,18 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
             <div className="lg:sticky lg:top-24 space-y-5">
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="relative h-36 overflow-hidden">
-                  <img src={trek.images[0]} alt={trek.title} className="w-full h-full object-cover" />
+                  {trekThumb ? (
+                    <Image
+                      src={trekThumb}
+                      alt={trek.title}
+                      fill
+                      sizes="144px"
+                      className="object-cover"
+                      placeholder="blur"
+                      blurDataURL={STOREFRONT_BLUR_DATA_URL}
+                      priority
+                    />
+                  ) : null}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-3 left-3 right-3">
                     <h3 className="font-bold text-sm text-white drop-shadow-sm">{trek.title}</h3>

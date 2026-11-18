@@ -1,10 +1,21 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { ADMIN_PREFIX } from '@/lib/admin/constants';
-import StorefrontChrome from '@/components/storefront/StorefrontChrome';
 import { resetBodyScrollLock } from '@/lib/dom/scroll-lock';
+
+const StorefrontChrome = dynamic(() => import('@/components/storefront/StorefrontChrome'), {
+  ssr: true,
+});
+const CheckoutChrome = dynamic(() => import('@/components/booking/CheckoutChrome'), {
+  ssr: true,
+});
+
+function isCheckoutPath(pathname: string) {
+  return pathname === '/booking' || pathname.startsWith('/booking/');
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '';
@@ -17,6 +28,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isAdmin) {
     return <>{children}</>;
+  }
+
+  if (isCheckoutPath(pathname)) {
+    return <CheckoutChrome>{children}</CheckoutChrome>;
   }
 
   return <StorefrontChrome>{children}</StorefrontChrome>;

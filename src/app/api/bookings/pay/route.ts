@@ -5,7 +5,6 @@ import { isRazorpayConfigured } from '@/lib/payments/razorpay';
 import { createPayNowCheckout } from '@/lib/payments/service';
 import type { BookingPayment } from '@/lib/operations/types';
 import {
-  CHECKOUT_LIMIT,
   PAYMENT_ORDER_LIMIT,
   PROTECTED_MUTATION_IP_ABUSE_LIMIT,
   checkIpAbuseLimit,
@@ -56,13 +55,8 @@ export async function POST(req: NextRequest) {
     return unauthorizedUserResponse();
   }
 
-  const [checkoutLimited, orderLimited] = await Promise.all([
-    checkUserRateLimit(CHECKOUT_LIMIT, user.id),
-    checkUserRateLimit(PAYMENT_ORDER_LIMIT, user.id),
-  ]);
-  if (!checkoutLimited.allowed) {
-    return rateLimitedResponse(checkoutLimited.retryAfterSec);
-  }
+  // One bucket for combined pay-now (booking + order) — avoids double upsert latency.
+  const orderLimited = await checkUserRateLimit(PAYMENT_ORDER_LIMIT, user.id);
   if (!orderLimited.allowed) {
     return rateLimitedResponse(orderLimited.retryAfterSec);
   }
@@ -104,7 +98,9 @@ export async function POST(req: NextRequest) {
       idempotencyKey,
     });
 
-    const { reused: _reused, checkoutToken, ...order } = result;
+    const { checkoutToken, ...order } = result;
+    // `reused` is server-only telemetry — strip before client response.
+    delete (order as { reused?: boolean }).reused;
 
     return NextResponse.json(
       {

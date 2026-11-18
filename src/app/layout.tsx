@@ -2,28 +2,34 @@ import type { Metadata, Viewport } from 'next';
 import { Nunito, Playfair_Display, Poppins } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
+import ConditionalFontAwesome from '@/components/seo/ConditionalFontAwesome';
 import { SITE_ICON_URL, SITE_LOGO_URL } from '@/lib/brand-assets';
 import { ORGANIZATION, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/site';
 
+/* Slim font surface: normal cuts only — CSS faux-italic covers rare italic UI.
+   Fewer weights/styles = much smaller checkout & storefront font payload. */
 const poppins = Poppins({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  style: ['normal', 'italic'],
+  weight: ['400', '500', '600', '700'],
+  style: ['normal'],
   variable: '--font-poppins',
+  display: 'swap',
 });
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
-  weight: ['600', '700', '800', '900'],
-  style: ['normal', 'italic'],
+  weight: ['700', '800'],
+  style: ['normal'],
   variable: '--font-playfair',
+  display: 'swap',
 });
 
 const nunito = Nunito({
   subsets: ['latin'],
-  weight: ['400', '600', '700', '800', '900'],
-  style: ['normal', 'italic'],
+  weight: ['600', '700', '800'],
+  style: ['normal'],
   variable: '--font-nunito',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -72,16 +78,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${poppins.variable} ${playfair.variable} ${nunito.variable}`}>
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-          integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
-        />
-      </head>
       <body className={`${poppins.className} min-h-dvh overscroll-x-none antialiased`}>
+        <ConditionalFontAwesome />
         <AppShell>{children}</AppShell>
       </body>
     </html>

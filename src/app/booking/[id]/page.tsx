@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { ArrowRight, Ban } from 'lucide-react';
 import { getTrekById } from '@/lib/data';
+import { toBookingTrek } from '@/lib/booking-checkout-shared';
 import BookingCheckoutClient from '@/components/booking/BookingCheckoutClient';
 
 export default async function BookingPage({
@@ -34,6 +35,9 @@ export default async function BookingPage({
     );
   }
 
+  // Explicit projection — never serialize full Trek (itinerary/gallery/FAQ) into the client.
+  const bookingTrek = toBookingTrek(trek);
+
   return (
     <>
       <link rel="preconnect" href="https://checkout.razorpay.com" crossOrigin="anonymous" />
@@ -49,7 +53,7 @@ export default async function BookingPage({
         strategy="afterInteractive"
         data-razorpay-checkout="1"
       />
-      <BookingCheckoutClient trek={trek} />
+      <BookingCheckoutClient trek={bookingTrek} />
     </>
   );
 }

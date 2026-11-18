@@ -29,6 +29,7 @@ declare global {
 }
 
 const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+const LOAD_TIMEOUT_MS = 12000;
 
 let razorpayLoadPromise: Promise<void> | null = null;
 
@@ -54,40 +55,71 @@ function loadRazorpayScript(): Promise<void> {
   if (razorpayLoadPromise) return razorpayLoadPromise;
 
   razorpayLoadPromise = new Promise<void>((resolve, reject) => {
-    const finish = () => {
-      if (window.Razorpay) {
-        resolve();
-        return;
+    let settled = false;
+    let poll: number | undefined;
+
+    const settleOk = () => {
+      if (settled) return;
+      if (!window.Razorpay) return;
+      settled = true;
+      if (poll !== undefined) window.clearInterval(poll);
+      resolve();
+    };
+
+    const settleErr = (message: string) => {
+      if (settled) return;
+      settled = true;
+      if (poll !== undefined) window.clearInterval(poll);
+      razorpayLoadPromise = null;
+      reject(new Error(message));
+    };
+
+    const timeout = window.setTimeout(() => {
+      settleErr('Razorpay Checkout timed out. Please refresh and try again.');
+    }, LOAD_TIMEOUT_MS);
+
+    const finishOk = () => {
+      window.clearTimeout(timeout);
+      settleOk();
+      if (!settled && !window.Razorpay) {
+        settleErr('Razorpay SDK unavailable');
       }
-      reject(new Error('Razorpay SDK unavailable'));
     };
 
     const existing = document.querySelector<HTMLScriptElement>('script[data-razorpay-checkout]');
     if (existing) {
       if (window.Razorpay) {
-        resolve();
+        window.clearTimeout(timeout);
+        settleOk();
         return;
       }
-      existing.addEventListener('load', () => {
-        existing.dataset.ready = '1';
-        finish();
-      }, { once: true });
-      existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay')), {
-        once: true,
-      });
+      existing.addEventListener(
+        'load',
+        () => {
+          existing.dataset.ready = '1';
+          finishOk();
+        },
+        { once: true },
+      );
+      existing.addEventListener(
+        'error',
+        () => {
+          window.clearTimeout(timeout);
+          settleErr('Failed to load Razorpay Checkout');
+        },
+        { once: true },
+      );
       // Next <Script /> may already be complete without dataset.ready.
       if (existing.dataset.ready === '1' || existing.getAttribute('data-loaded') === 'true') {
-        queueMicrotask(finish);
-        return;
+        queueMicrotask(finishOk);
       }
-      const poll = window.setInterval(() => {
+      poll = window.setInterval(() => {
         if (window.Razorpay) {
-          window.clearInterval(poll);
+          window.clearTimeout(timeout);
           existing.dataset.ready = '1';
-          resolve();
+          settleOk();
         }
       }, 40);
-      window.setTimeout(() => window.clearInterval(poll), 12000);
       return;
     }
 
@@ -97,11 +129,11 @@ function loadRazorpayScript(): Promise<void> {
     script.dataset.razorpayCheckout = '1';
     script.onload = () => {
       script.dataset.ready = '1';
-      finish();
+      finishOk();
     };
     script.onerror = () => {
-      razorpayLoadPromise = null;
-      reject(new Error('Failed to load Razorpay Checkout'));
+      window.clearTimeout(timeout);
+      settleErr('Failed to load Razorpay Checkout');
     };
     document.head.appendChild(script);
   });

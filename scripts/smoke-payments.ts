@@ -135,8 +135,10 @@ function testAuthRequiredGuardsPresent() {
     path.join(__dirname, '../src/lib/payments/service.ts'),
     'utf8',
   );
-  assert.match(service, /Authentication required/);
+  assert.match(service, /Please sign in to continue/);
   assert.match(service, /status:\s*401/);
+  assert.match(service, /assertBookingPayable/);
+  assert.match(service, /verifyAndConfirmPayment/);
 
   const checkout = fs.readFileSync(
     path.join(__dirname, '../src/app/api/bookings/checkout/route.ts'),

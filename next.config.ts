@@ -11,7 +11,7 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self' https://api.razorpay.com https://checkout.razorpay.com",
-  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://i.ytimg.com https://*.mapbox.com https://*.razorpay.com https://indiantreks.in",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://i.ytimg.com https://*.mapbox.com https://*.razorpay.com https://indiantreks.in https://roopkundheaven.in",
   "media-src 'self' https://res.cloudinary.com https://media.indiantreks.in blob:",
   "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://*.mapbox.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://api.mapbox.com https://*.razorpay.com",

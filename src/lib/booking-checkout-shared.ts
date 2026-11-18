@@ -28,6 +28,44 @@ export type BookingTrek = {
   type?: 'trek' | 'yatra';
 };
 
+/** Strip full catalog Trek → only fields the booking SPA may serialize to the client. */
+export function toBookingTrek(trek: {
+  id: string;
+  title: string;
+  duration: string;
+  location: string;
+  difficulty: string;
+  rating: string;
+  reviewCount: string;
+  groupSize: string;
+  images: string[];
+  pricing: PricingTier[];
+  type?: 'trek' | 'yatra';
+}): BookingTrek {
+  return {
+    id: trek.id,
+    title: trek.title,
+    duration: trek.duration,
+    location: trek.location,
+    difficulty: trek.difficulty,
+    rating: trek.rating,
+    reviewCount: trek.reviewCount,
+    groupSize: trek.groupSize,
+    // Checkout UI only needs a small hero thumb — keep first image only.
+    images: trek.images?.length ? [trek.images[0]] : [],
+    pricing: (trek.pricing || []).map((p) => ({
+      name: p.name,
+      price: p.price,
+      originalPrice: p.originalPrice,
+      deposit: p.deposit,
+      badge: p.badge,
+      inclusions: p.inclusions || [],
+      exclusions: p.exclusions || [],
+    })),
+    type: trek.type,
+  };
+}
+
 export function trekDetailPath(trek: BookingTrek, kind?: 'trek' | 'yatra' | 'trip') {
   if (kind === 'trip') return `/trips/${trek.id}`;
   if (kind === 'yatra' || (!kind && trek.type === 'yatra')) return `/yatra/${trek.id}`;

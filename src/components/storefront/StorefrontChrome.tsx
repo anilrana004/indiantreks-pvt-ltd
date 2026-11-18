@@ -1,19 +1,21 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import '@/app/retro-buttons.css';
 import '@/app/retro-button-colors.css';
 import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import WhatsAppFloat from '@/components/WhatsAppFloat';
-import MobileBottomNav from '@/components/MobileBottomNav';
-import LeadCapturePopup from '@/components/LeadCapturePopup';
 import JsonLd from '@/components/seo/JsonLd';
 import { buildOrganizationJsonLd, buildWebSiteJsonLd } from '@/lib/seo/json-ld';
 
+const Footer = dynamic(() => import('@/components/Footer'), { ssr: true });
+const WhatsAppFloat = dynamic(() => import('@/components/WhatsAppFloat'), { ssr: false });
+const MobileBottomNav = dynamic(() => import('@/components/MobileBottomNav'), { ssr: false });
+const LeadCapturePopup = dynamic(() => import('@/components/LeadCapturePopup'), { ssr: false });
+
 const AUTH_PATHS = new Set(['/login', '/signup', '/forgot-password', '/reset-password']);
 
-/** Public storefront chrome — never rendered on admin routes. */
+/** Public storefront chrome — never rendered on admin or checkout routes. */
 export default function StorefrontChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '';
   const isAuthPage = AUTH_PATHS.has(pathname);

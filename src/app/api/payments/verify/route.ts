@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
       razorpayOrderId: String(body.razorpay_order_id || body.razorpayOrderId || ''),
       razorpayPaymentId: String(body.razorpay_payment_id || body.razorpayPaymentId || ''),
       razorpaySignature: String(body.razorpay_signature || body.razorpaySignature || ''),
+      user,
     });
     return NextResponse.json(result);
   } catch (err) {
