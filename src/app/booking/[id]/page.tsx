@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Script from 'next/script';
 import { ArrowRight, Ban } from 'lucide-react';
 import { getTrekById } from '@/lib/data';
 import { toBookingTrek } from '@/lib/booking-checkout-shared';
@@ -40,19 +39,10 @@ export default async function BookingPage({
 
   return (
     <>
+      {/* Preconnect only — SDK loads client-side after auth so guests avoid Razorpay console noise. */}
       <link rel="preconnect" href="https://checkout.razorpay.com" crossOrigin="anonymous" />
       <link rel="preconnect" href="https://api.razorpay.com" crossOrigin="anonymous" />
       <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
-      <link
-        rel="preload"
-        href="https://checkout.razorpay.com/v1/checkout.js"
-        as="script"
-      />
-      <Script
-        src="https://checkout.razorpay.com/v1/checkout.js"
-        strategy="afterInteractive"
-        data-razorpay-checkout="1"
-      />
       <BookingCheckoutClient trek={bookingTrek} />
     </>
   );

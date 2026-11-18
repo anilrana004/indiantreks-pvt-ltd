@@ -50,7 +50,11 @@ export default function LoginForm() {
     // Fast session peek — bounce signed-in users back instantly (no DB /me).
     fetch('/api/user/auth/session', { credentials: 'include', cache: 'default' })
       .then(async (res) => {
-        if (res.ok) {
+        if (!res.ok) return;
+        const body = (await res.json().catch(() => null)) as {
+          authenticated?: boolean;
+        } | null;
+        if (body?.authenticated) {
           window.location.replace(safeFrom);
         }
       })

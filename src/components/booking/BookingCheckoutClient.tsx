@@ -28,7 +28,7 @@ import {
   writeGearCart,
 } from '@/lib/gear-rental';
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
-import { cldOptimize, STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
+import { cldOptimize, isCloudinaryUrl, STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import type { PublicUser } from '@/lib/user-auth/types';
 import {
   ensureRazorpayReady,
@@ -58,13 +58,17 @@ function payIdempotencyKey(fingerprint: string) {
   return `pay:${fingerprint}`;
 }
 
-/** Warm TLS/HTTP2 to Pay Now without creating a booking. */
+let payApiWarmStarted = false;
+
+/** Warm TLS/HTTP2 to Pay Now without creating a booking (once per page). */
 function prefetchPayApiConnection() {
+  if (payApiWarmStarted || typeof window === 'undefined') return;
+  payApiWarmStarted = true;
   void fetch('/api/bookings/pay', {
-    method: 'HEAD',
+    method: 'OPTIONS',
     credentials: 'include',
   }).catch(() => {
-    /* 405 still warms the connection */
+    /* ignore warm failures */
   });
 }
 
@@ -278,7 +282,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
   useEffect(() => {
     let cancelled = false;
 
-    // 1) Instant JWT peek (no DB) — unlocks Pay Now / Login CTA in milliseconds.
+    // JWT peek first (always 200). Only hit /me when signed in — avoids guest 401 console noise.
     void (async () => {
       try {
         const peek = await fetch('/api/user/auth/session', {
@@ -286,26 +290,23 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
           cache: 'default',
         });
         if (cancelled) return;
-        if (!peek.ok) {
+        const peekBody = (await peek.json().catch(() => null)) as {
+          authenticated?: boolean;
+        } | null;
+        if (!peek.ok || !peekBody?.authenticated) {
           setAuthStatus('guest');
           setSignedInUser(null);
           return;
         }
         setAuthStatus('signed_in');
-      } catch {
-        if (!cancelled) {
-          setAuthStatus('guest');
-          setSignedInUser(null);
-        }
-      }
-    })();
 
-    // 2) Full profile hydrate in the background (DB) — never blocks Pay Now.
-    void (async () => {
-      try {
-        const res = await fetch('/api/user/auth/me', { credentials: 'include', cache: 'no-store' });
+        const res = await fetch('/api/user/auth/me', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
         if (cancelled) return;
         if (!res.ok) {
+          // Cookie may be stale — treat as guest without throwing.
           setSignedInUser(null);
           setAuthStatus('guest');
           return;
@@ -326,7 +327,10 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
         }));
         setProfileFilled(true);
       } catch {
-        /* peek already set authStatus; leave as-is */
+        if (!cancelled) {
+          setAuthStatus('guest');
+          setSignedInUser(null);
+        }
       }
     })();
 
@@ -335,25 +339,12 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     };
   }, []);
 
-  // Prefetch login for guests. Preload Razorpay SDK + pay API connection (TTH-style warm).
+  // Warm Razorpay + pay API only when signed in — guests never pull checkout.js (no 3P console noise).
   useEffect(() => {
+    if (authStatus !== 'signed_in') return;
     preloadRazorpayCheckout();
     prefetchPayApiConnection();
-  }, []);
-
-  useEffect(() => {
-    if (authStatus === 'guest') {
-      try {
-        router.prefetch('/login');
-      } catch {
-        /* ignore */
-      }
-    }
-    if (authStatus === 'signed_in') {
-      preloadRazorpayCheckout();
-      prefetchPayApiConnection();
-    }
-  }, [authStatus, router]);
+  }, [authStatus]);
 
   const gearLines = useMemo(
     () => cartForTrek(trek.id),
@@ -484,7 +475,12 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
   const trekThumb = useMemo(() => {
     const raw = trek.images[0] || '';
     if (!raw) return '';
-    return cldOptimize(raw, { w: 320, h: 320, crop: 'fill', quality: 'auto' });
+    // Cloudinary upload URLs can be resized; remote Unsplash/etc. go straight to next/image
+    // (Cloudinary fetch often 401s and floods the console).
+    if (isCloudinaryUrl(raw)) {
+      return cldOptimize(raw, { w: 320, h: 320, crop: 'fill', quality: 'auto' });
+    }
+    return raw;
   }, [trek.images]);
 
   /**
@@ -733,7 +729,10 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
           credentials: 'include',
           cache: 'default',
         });
-        if (!peek.ok) {
+        const peekBody = (await peek.json().catch(() => null)) as {
+          authenticated?: boolean;
+        } | null;
+        if (!peek.ok || !peekBody?.authenticated) {
           setAuthStatus('guest');
           redirectToLogin();
           return;
@@ -835,7 +834,11 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     <div className="pt-20 lg:pt-24 pb-12 lg:pb-20 bg-gray-50 min-h-screen">
       <div className="container mx-auto max-w-5xl">
         <div className="mb-6 lg:mb-8">
-          <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#16a34a] transition-colors mb-4">
+          <Link
+            href={backHref}
+            prefetch={false}
+            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#16a34a] transition-colors mb-4"
+          >
             <ChevronRight className="w-4 h-4 rotate-180" /> Back to {trek.title}
           </Link>
           <h1 className="font-[family-name:var(--font-heading)] text-2xl lg:text-3xl font-bold text-[#000000]">Complete Your Booking</h1>
@@ -1404,11 +1407,11 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                     />
                     <span>
                       I accept the{' '}
-                      <Link href="/terms" target="_blank" className="font-semibold text-[#1666d9] hover:underline">
+                      <Link href="/terms" target="_blank" prefetch={false} className="font-semibold text-[#1666d9] hover:underline">
                         Terms &amp; Conditions
                       </Link>
                       {' · '}
-                      <Link href="/terms" target="_blank" className="font-semibold text-[#1666d9] hover:underline">
+                      <Link href="/terms" target="_blank" prefetch={false} className="font-semibold text-[#1666d9] hover:underline">
                         Read T&amp;C
                       </Link>
                     </span>
@@ -1606,7 +1609,7 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
                 <a href={whatsappUrl('Hi Indian Treks! I need help with my booking.')} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm text-[#000000] hover:text-[#16a34a] transition-colors mb-3">
                   <i className="fa-brands fa-whatsapp text-[#25D366]" aria-hidden /> WhatsApp {CONTACT.phoneDisplay}
                 </a>
-                <Link href="/contact" className="text-xs text-[#16a34a] font-medium hover:text-[#15803d] transition-colors">Contact Support &rarr;</Link>
+                <Link href="/contact" prefetch={false} className="text-xs text-[#16a34a] font-medium hover:text-[#15803d] transition-colors">Contact Support &rarr;</Link>
               </div>
             </div>
           </div>

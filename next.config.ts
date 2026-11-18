@@ -16,7 +16,8 @@ const CONTENT_SECURITY_POLICY = [
   "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://*.mapbox.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://api.mapbox.com https://*.razorpay.com",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com https://apis.google.com https://www.googletagmanager.com https://www.google-analytics.com https://api.mapbox.com",
-  "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://*.razorpay.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://res.cloudinary.com https://api.cloudinary.com https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com https://www.google-analytics.com https://www.googletagmanager.com https://vitals.vercel-insights.com https://media.indiantreks.in",
+  "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://*.razorpay.com https://checkout-static-next.razorpay.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://res.cloudinary.com https://api.cloudinary.com https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com https://www.google-analytics.com https://www.googletagmanager.com https://vitals.vercel-insights.com https://media.indiantreks.in",
+  "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://*.razorpay.com https://checkout-static-next.razorpay.com https://accounts.google.com https://apis.google.com https://www.googletagmanager.com https://www.google-analytics.com https://api.mapbox.com",
   "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com https://www.youtube.com https://www.youtube-nocookie.com",
   "worker-src 'self' blob:",
   "child-src 'self' blob: https://checkout.razorpay.com",
@@ -66,7 +67,9 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            // Allow Razorpay checkout features; avoid console "Unrecognized feature" noise.
+            value:
+              "camera=(), microphone=(), geolocation=(), payment=(self \"https://api.razorpay.com\" \"https://checkout.razorpay.com\"), publickey-credentials-get=(self \"https://api.razorpay.com\" \"https://checkout.razorpay.com\")",
           },
           {
             key: "Cross-Origin-Opener-Policy",

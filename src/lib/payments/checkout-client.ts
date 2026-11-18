@@ -147,7 +147,6 @@ export function preloadRazorpayCheckout(): void {
   ensureHeadLink('preconnect', 'https://checkout.razorpay.com', { crossorigin: 'anonymous' });
   ensureHeadLink('preconnect', 'https://api.razorpay.com', { crossorigin: 'anonymous' });
   ensureHeadLink('dns-prefetch', 'https://checkout.razorpay.com');
-  ensureHeadLink('preload', RAZORPAY_SRC, { as: 'script' });
   void loadRazorpayScript().catch(() => {
     /* ignore warm failures — open path still loads */
   });

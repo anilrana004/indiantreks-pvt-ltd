@@ -12,8 +12,16 @@ export const runtime = 'nodejs';
 export async function GET() {
   const cookieStore = await cookies();
   const session = await verifyUserSessionToken(cookieStore.get(USER_COOKIE)?.value);
+  // Always 200 — guest peeks must not spam DevTools with 401 "Failed to load resource".
   if (!session) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
+    return NextResponse.json(
+      { authenticated: false },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=5',
+        },
+      },
+    );
   }
   return NextResponse.json(
     { authenticated: true, email: session.email, userId: session.userId },
