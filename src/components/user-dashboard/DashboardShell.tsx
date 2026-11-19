@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import {
   CalendarCheck,
   CalendarDays,
@@ -24,48 +24,126 @@ const NAV = [
   { href: '/user-dashboard/profile', label: 'Profile', icon: UserRound },
 ] as const;
 
+async function clearStaleSession() {
+  try {
+    await fetch('/api/user/auth/logout', { method: 'POST', credentials: 'include' });
+  } catch {
+    // ignore — hard redirect still lands on login
+  }
+  try {
+    sessionStorage.removeItem(USER_TOKEN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '';
-  const router = useRouter();
+  const fromRef = useRef(pathname);
   const [user, setUser] = useState<PublicUser | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
+    fromRef.current = pathname;
+
     (async () => {
-      const res = await fetch('/api/user/auth/me', { credentials: 'include', cache: 'no-store' });
-      if (!res.ok) {
-        router.replace(`/login?from=${encodeURIComponent(pathname)}`);
-        return;
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const res = await fetch('/api/user/auth/me', {
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          if (cancelled) return;
+
+          // True unauthenticated / revoked session — clear cookie so LoginForm's
+          // JWT-only /session peek cannot bounce us straight back into a loop.
+          if (res.status === 401) {
+            await clearStaleSession();
+            if (cancelled) return;
+            window.location.replace(
+              `/login?from=${encodeURIComponent(fromRef.current || '/user-dashboard')}`,
+            );
+            return;
+          }
+
+          // Infra / transient — retry; never treat as logged-out.
+          if (!res.ok) {
+            if (attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, 350 * attempt));
+              continue;
+            }
+            setLoadError('Unable to load your account right now. Please refresh and try again.');
+            setReady(true);
+            return;
+          }
+
+          const body = (await res.json()) as { user: PublicUser };
+          if (!cancelled) {
+            setUser(body.user);
+            setLoadError('');
+            setReady(true);
+          }
+          return;
+        } catch {
+          if (cancelled) return;
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 350 * attempt));
+            continue;
+          }
+          setLoadError('Unable to connect. Please refresh and try again.');
+          setReady(true);
+          return;
+        }
       }
-      const body = (await res.json()) as { user: PublicUser };
-      if (!cancelled) {
-        setUser(body.user);
-        setReady(true);
-      }
-    })().catch(() => {
-      router.replace(`/login?from=${encodeURIComponent(pathname)}`);
-    });
+    })();
+
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+    // Auth once per mount — re-fetching on every dashboard nav caused flaky bounce-outs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only gate
+  }, []);
 
   const logout = async () => {
-    await fetch('/api/user/auth/logout', { method: 'POST', credentials: 'include' });
-    try {
-      sessionStorage.removeItem(USER_TOKEN_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    router.push('/login');
-    router.refresh();
+    await clearStaleSession();
+    window.location.replace('/login');
   };
 
-  if (!ready || !user) {
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--ih-bg)] pt-20">
         <p className="text-sm text-slate-500">Loading your dashboard…</p>
+      </div>
+    );
+  }
+
+  if (loadError || !user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--ih-bg)] px-4 pt-20">
+        <p className="max-w-md text-center text-sm text-slate-600">
+          {loadError || 'Unable to load your account.'}
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-full bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d]"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void logout();
+            }}
+            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Sign in again
+          </button>
+        </div>
       </div>
     );
   }
@@ -83,7 +161,9 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </div>
           <button
             type="button"
-            onClick={logout}
+            onClick={() => {
+              void logout();
+            }}
             className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
             <LogOut className="h-4 w-4" />

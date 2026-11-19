@@ -111,14 +111,32 @@ export async function verifyUserSessionToken(
   }
 }
 
+/** Share the session cookie across apex + www so host redirects do not drop auth. */
+function productionCookieDomain(): string | undefined {
+  if (!isProductionRuntime()) return undefined;
+  try {
+    const host = process.env.NEXT_PUBLIC_SITE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname
+      : 'www.indiantreks.in';
+    if (host === 'indiantreks.in' || host.endsWith('.indiantreks.in')) {
+      return '.indiantreks.in';
+    }
+  } catch {
+    // ignore malformed SITE_URL
+  }
+  return undefined;
+}
+
 export function userSessionCookieOptions() {
   const secure = isProductionRuntime() || process.env.NODE_ENV === 'production';
+  const domain = productionCookieDomain();
   return {
     httpOnly: true,
     secure,
     sameSite: 'lax' as const,
     path: '/',
     maxAge: USER_SESSION_TTL_MS / 1000,
+    ...(domain ? { domain } : {}),
   };
 }
 

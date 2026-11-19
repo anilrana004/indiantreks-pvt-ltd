@@ -72,21 +72,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    let sessionVersion = 0;
-    try {
-      const { findAuthUserById } = await import('@/lib/user-auth/service');
-      const authUser = await findAuthUserById(result.user.id);
-      sessionVersion = authUser?.sessionVersion ?? 0;
-    } catch (lookupErr) {
-      const classified = classifyDbError(lookupErr);
-      console.error('[user-auth/login] session version lookup failed', classified);
-      if (classified.kind !== 'unknown') {
-        return NextResponse.json({ error: classified.message, code: `DB_${classified.kind}` }, { status: 503 });
-      }
-      // Proceed with sessionVersion 0 if lookup failed for a non-infra reason.
-    }
-
-    const token = await createUserSessionToken(result.user.id, result.user.email, sessionVersion);
+    const token = await createUserSessionToken(
+      result.user.id,
+      result.user.email,
+      result.sessionVersion,
+    );
     // Cookie-only session — never return the token to JS (XSS would steal it).
     const response = NextResponse.json({ success: true, user: result.user });
     response.cookies.set(USER_COOKIE, token, userSessionCookieOptions());

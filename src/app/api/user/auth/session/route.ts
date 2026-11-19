@@ -13,23 +13,13 @@ export async function GET() {
   const cookieStore = await cookies();
   const session = await verifyUserSessionToken(cookieStore.get(USER_COOKIE)?.value);
   // Always 200 — guest peeks must not spam DevTools with 401 "Failed to load resource".
+  // no-store: cached peeks caused login ↔ dashboard bounce after cookie changes.
+  const headers = { 'Cache-Control': 'no-store, private' };
   if (!session) {
-    return NextResponse.json(
-      { authenticated: false },
-      {
-        headers: {
-          'Cache-Control': 'private, max-age=5',
-        },
-      },
-    );
+    return NextResponse.json({ authenticated: false }, { headers });
   }
   return NextResponse.json(
     { authenticated: true, email: session.email, userId: session.userId },
-    {
-      headers: {
-        // Tiny private cache so rapid step changes don’t re-hit the edge.
-        'Cache-Control': 'private, max-age=5',
-      },
-    },
+    { headers },
   );
 }

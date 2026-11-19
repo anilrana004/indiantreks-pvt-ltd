@@ -274,14 +274,16 @@ export async function registerUser(
 export async function authenticateWithPassword(
   email: string,
   password: string,
-): Promise<{ user: PublicUser } | { error: string; status: number }> {
+): Promise<{ user: PublicUser; sessionVersion: number } | { error: string; status: number }> {
   const user = await findAuthUserByEmail(email);
   if (!user || !user.passwordHash) {
     return { error: 'Invalid email or password.', status: 401 };
   }
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) return { error: 'Invalid email or password.', status: 401 };
-  return { user: toPublic(user) };
+  // Return sessionVersion from the same row used for auth — a second lookup can
+  // diverge (or fail open to 0) and mint a cookie that /me immediately rejects.
+  return { user: toPublic(user), sessionVersion: user.sessionVersion ?? 0 };
 }
 
 export async function upsertGoogleUser(input: {

@@ -47,14 +47,13 @@ export default function LoginForm() {
     if (err && ERROR_MESSAGES[err]) setError(ERROR_MESSAGES[err]);
     if (params.get('reset') === '1') setResetNotice(true);
 
-    // Fast session peek — bounce signed-in users back instantly (no DB /me).
-    fetch('/api/user/auth/session', { credentials: 'include', cache: 'default' })
+    // Confirm a live account (not JWT-only). A stale cookie that passes /session
+    // but fails /me used to bounce dashboard → login → dashboard forever.
+    fetch('/api/user/auth/me', { credentials: 'include', cache: 'no-store' })
       .then(async (res) => {
         if (!res.ok) return;
-        const body = (await res.json().catch(() => null)) as {
-          authenticated?: boolean;
-        } | null;
-        if (body?.authenticated) {
+        const body = (await res.json().catch(() => null)) as { user?: unknown } | null;
+        if (body?.user) {
           window.location.replace(safeFrom);
         }
       })
@@ -93,8 +92,8 @@ export default function LoginForm() {
         return;
       }
       // Session is httpOnly cookie only — do not store tokens in sessionStorage.
-      // Hard return is faster than soft router.push + refresh after auth cookie set.
-      window.location.assign(returnTo);
+      // Hard replace so back-button / bfcache cannot restore a half-signed-in login form.
+      window.location.replace(returnTo);
     } catch {
       setError('Unable to connect. Please try again.');
     } finally {

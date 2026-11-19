@@ -67,7 +67,11 @@ export async function GET(req: Request) {
 
     const { findAuthUserById } = await import('@/lib/user-auth/service');
     const authUser = await findAuthUserById(user.id);
-    const token = await createUserSessionToken(user.id, user.email, authUser?.sessionVersion ?? 0);
+    if (!authUser) {
+      // Never mint sessionVersion 0 when the row is missing — that causes /me rejection loops.
+      return failRedirect(origin, 'google_failed');
+    }
+    const token = await createUserSessionToken(user.id, user.email, authUser.sessionVersion ?? 0);
     const res = NextResponse.redirect(new URL(returnTo, origin));
     res.cookies.set(USER_COOKIE, token, userSessionCookieOptions());
     clearOauthCookies(res);

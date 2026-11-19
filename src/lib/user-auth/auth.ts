@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { classifyDbError } from '@/lib/db/errors';
 import { USER_COOKIE } from '@/lib/user-auth/constants';
 import { findAuthUserById } from '@/lib/user-auth/service';
 import {
@@ -9,6 +10,16 @@ import {
   verifyUserSessionToken,
 } from '@/lib/user-auth/session';
 import type { PublicUser } from '@/lib/user-auth/types';
+
+/** Thrown when the auth store is down — callers must return 503, not 401. */
+export class AuthInfraError extends Error {
+  readonly kind: string;
+  constructor(message: string, kind: string) {
+    super(message);
+    this.name = 'AuthInfraError';
+    this.kind = kind;
+  }
+}
 
 export async function isUserAuthenticatedFromRequest(request: NextRequest): Promise<boolean> {
   return Boolean(await getCurrentUserFromToken(request.cookies.get(USER_COOKIE)?.value));
@@ -21,7 +32,18 @@ export async function getSessionFromRequest(request: NextRequest) {
 async function getCurrentUserFromToken(token: string | undefined | null): Promise<PublicUser | null> {
   const session = await verifyUserSessionToken(token);
   if (!session) return null;
-  const user = await findAuthUserById(session.userId);
+
+  let user;
+  try {
+    user = await findAuthUserById(session.userId);
+  } catch (err) {
+    const classified = classifyDbError(err);
+    if (classified.kind !== 'unknown') {
+      throw new AuthInfraError(classified.message, classified.kind);
+    }
+    throw err;
+  }
+
   if (!user) return null;
   // Password reset / logout-everywhere bumps sessionVersion — reject stale cookies.
   if ((user.sessionVersion ?? 0) !== session.sessionVersion) return null;
@@ -68,7 +90,16 @@ export async function attachUserSession(
 }
 
 export function clearUserSession(response: NextResponse) {
-  response.cookies.set(USER_COOKIE, '', { ...userSessionCookieOptions(), maxAge: 0 });
+  const opts = { ...userSessionCookieOptions(), maxAge: 0 };
+  response.cookies.set(USER_COOKIE, '', opts);
+  // Also drop any legacy host-only cookie from before Domain=.indiantreks.in.
+  if (opts.domain) {
+    const secure = opts.secure ? '; Secure' : '';
+    response.headers.append(
+      'Set-Cookie',
+      `${USER_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
+    );
+  }
 }
 
 export function unauthorizedUserResponse(message = 'Please sign in to continue.') {
