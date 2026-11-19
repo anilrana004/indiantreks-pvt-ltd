@@ -28,6 +28,16 @@ export type BookingTrek = {
   type?: 'trek' | 'yatra';
 };
 
+function pickCheckoutThumb(images: string[] | undefined): string[] {
+  if (!images?.length) return [];
+  // Prefer non-HEIC so next/image / Cloudinary don't burn decode cost on checkout.
+  const preferred =
+    images.find((src) => /\.(jpe?g|png|webp|avif)(\?|$)/i.test(src)) ||
+    images.find((src) => !/\.heic(\?|$)/i.test(src)) ||
+    images[0];
+  return preferred ? [preferred] : [];
+}
+
 /** Strip full catalog Trek → only fields the booking SPA may serialize to the client. */
 export function toBookingTrek(trek: {
   id: string;
@@ -51,16 +61,16 @@ export function toBookingTrek(trek: {
     rating: trek.rating,
     reviewCount: trek.reviewCount,
     groupSize: trek.groupSize,
-    // Checkout UI only needs a small hero thumb — keep first image only.
-    images: trek.images?.length ? [trek.images[0]] : [],
+    images: pickCheckoutThumb(trek.images),
+    // Checkout only needs price/deposit — omit long inclusion lists from RSC payload.
     pricing: (trek.pricing || []).map((p) => ({
       name: p.name,
       price: p.price,
       originalPrice: p.originalPrice,
       deposit: p.deposit,
       badge: p.badge,
-      inclusions: p.inclusions || [],
-      exclusions: p.exclusions || [],
+      inclusions: [],
+      exclusions: [],
     })),
     type: trek.type,
   };

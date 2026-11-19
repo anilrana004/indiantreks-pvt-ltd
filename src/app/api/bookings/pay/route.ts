@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
-import { isRazorpayConfigured } from '@/lib/payments/razorpay';
+import { isRazorpayConfigured, warmRazorpayConnection } from '@/lib/payments/razorpay';
 import { createPayNowCheckout } from '@/lib/payments/service';
 import type { BookingPayment } from '@/lib/operations/types';
 import {
@@ -22,10 +22,12 @@ export const runtime = 'nodejs';
  */
 export async function HEAD() {
   // Connection warm from booking SPA — no body work.
+  warmRazorpayConnection();
   return new NextResponse(null, { status: 204 });
 }
 
 export async function OPTIONS() {
+  warmRazorpayConnection();
   return new NextResponse(null, {
     status: 204,
     headers: {

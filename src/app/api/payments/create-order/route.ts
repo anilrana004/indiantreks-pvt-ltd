@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbUnavailableResponse } from '@/lib/api/responses';
 import { isDbConfigured } from '@/lib/db';
-import { isRazorpayConfigured } from '@/lib/payments/razorpay';
+import { isRazorpayConfigured, warmRazorpayConnection } from '@/lib/payments/razorpay';
 import { createRazorpayOrderForBooking } from '@/lib/payments/service';
 import {
   PAYMENT_ORDER_LIMIT,
@@ -17,10 +17,12 @@ export const runtime = 'nodejs';
 
 /** Connection warm — SPA can OPTIONS/HEAD without creating an order. */
 export async function HEAD() {
+  warmRazorpayConnection();
   return new NextResponse(null, { status: 204 });
 }
 
 export async function OPTIONS() {
+  warmRazorpayConnection();
   return new NextResponse(null, {
     status: 204,
     headers: { Allow: 'HEAD, OPTIONS, POST' },
@@ -34,10 +36,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Razorpay is not configured' }, { status: 503 });
   }
 
-  // Parallel auth + IP shield — remove sequential await before order work.
-  const [abuse, user] = await Promise.all([
+  // Parallel auth + IP shield + body parse — remove sequential awaits before order work.
+  const [abuse, user, body] = await Promise.all([
     checkIpAbuseLimit(PROTECTED_MUTATION_IP_ABUSE_LIMIT, clientIp(req)),
     getCurrentUser(),
+    req.json().catch(() => null),
   ]);
   if (!abuse.allowed) {
     return rateLimitedResponse(abuse.retryAfterSec);
@@ -59,12 +62,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const bookingId = String(body.bookingId || '');
-    const checkoutToken = String(body.checkoutToken || '');
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const payload = body as Record<string, unknown>;
+    const bookingId = String(payload.bookingId || '');
+    const checkoutToken = String(payload.checkoutToken || '');
     const idempotencyKey =
       req.headers.get('idempotency-key')?.trim() ||
-      (typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '');
+      (typeof payload.idempotencyKey === 'string' ? payload.idempotencyKey.trim() : '');
     if (!bookingId || !checkoutToken) {
       return NextResponse.json({ error: 'bookingId and checkoutToken are required' }, { status: 400 });
     }
@@ -80,6 +86,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'Server-Timing': `create-order;dur=${ms}`,
         'Cache-Control': 'no-store',
+        'X-Create-Order-Ms': String(ms),
       },
     });
   } catch (err) {

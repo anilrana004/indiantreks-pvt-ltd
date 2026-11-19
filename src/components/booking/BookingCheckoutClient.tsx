@@ -26,7 +26,7 @@ import {
   readGearCart,
   subscribeGearCart,
   writeGearCart,
-} from '@/lib/gear-rental';
+} from '@/lib/gear-cart';
 import { whatsappUrl, CONTACT, telUrl } from '@/lib/contact';
 import { cldOptimize, isCloudinaryUrl, STOREFRONT_BLUR_DATA_URL } from '@/lib/cloudinary';
 import type { PublicUser } from '@/lib/user-auth/types';
@@ -340,16 +340,17 @@ function BookingContent({ trek }: { trek: BookingTrek }) {
     };
   }, []);
 
-  // Always preload checkout.js into cache; execute SDK + warm pay API once signed in.
+  // Always preload checkout.js into HTTP cache (no execute → no Razorpay secondary MB).
   useEffect(() => {
     prefetchRazorpayCheckoutScript();
   }, []);
 
+  // Execute SDK from preload cache on Confirm (signed-in) so Pay Now opens synchronously.
   useEffect(() => {
     if (authStatus !== 'signed_in') return;
-    preloadRazorpayCheckout();
     prefetchPayApiConnection();
-  }, [authStatus]);
+    if (step >= 3) preloadRazorpayCheckout();
+  }, [authStatus, step]);
 
   const gearLines = useMemo(
     () => cartForTrek(trek.id),

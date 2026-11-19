@@ -1,6 +1,14 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import https from 'node:https';
 import Razorpay from 'razorpay';
 import { RAZORPAY_LOGO_URL } from '@/lib/brand-assets';
+
+const razorpayHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 30_000,
+});
 
 export type RazorpayMode = 'test' | 'live';
 
@@ -32,6 +40,7 @@ export function isRazorpayConfigured(): boolean {
 }
 
 let razorpayClient: Razorpay | null = null;
+let razorpayWarmPromise: Promise<void> | null = null;
 
 export function getRazorpayClient(): Razorpay {
   if (!razorpayClient) {
@@ -39,8 +48,32 @@ export function getRazorpayClient(): Razorpay {
       key_id: getRazorpayKeyId(),
       key_secret: getRazorpayKeySecret(),
     });
+    // Reuse TLS sockets across order/payment calls (axios instance inside SDK).
+    const api = (razorpayClient as unknown as { api?: { rq?: { defaults?: Record<string, unknown> } } })
+      .api;
+    if (api?.rq?.defaults) {
+      api.rq.defaults.httpsAgent = razorpayHttpsAgent;
+      api.rq.defaults.timeout = 15_000;
+    }
   }
   return razorpayClient;
+}
+
+/** Fire-and-forget TLS warm to api.razorpay.com (safe no-op on failure). */
+export function warmRazorpayConnection(): void {
+  if (!isRazorpayConfigured()) return;
+  if (razorpayWarmPromise) return;
+  razorpayWarmPromise = (async () => {
+    try {
+      const client = getRazorpayClient();
+      const rq = (client as unknown as { api?: { rq?: { get: (url: string) => Promise<unknown> } } })
+        .api?.rq;
+      // Any response (including 404) completes the TLS handshake for keep-alive reuse.
+      await rq?.get('/').catch(() => undefined);
+    } catch {
+      razorpayWarmPromise = null;
+    }
+  })();
 }
 
 export function rupeesToPaise(rupees: number): number {
